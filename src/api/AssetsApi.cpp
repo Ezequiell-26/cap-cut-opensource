@@ -1,485 +1,287 @@
 #include "AssetsApi.hpp"
-#include <QNetworkAccessManager>
-#include <QNetworkRequest>
-#include <QNetworkReply>
+
+#include <QEventLoop>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
-#include <QJsonArray>
-#include <QEventLoop>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QNetworkRequest>
+#include <QTimer>
+#include <QUrl>
 #include <QUrlQuery>
-#include <QDebug>
+
+#include <algorithm>
 
 namespace ccos::api {
+namespace {
 
-// ==================== Google Fonts API ====================
-
-GoogleFontsApi::GoogleFontsApi(QString apiKey)
-    : apiKey_(std::move(apiKey))
-{
-}
-
-void GoogleFontsApi::setProvider(const QString& provider) {
-    provider_ = provider;
-}
-
-QStringList GoogleFontsApi::fontCategories() {
-    return {"serif", "sans-serif", "display", "handwriting", "monospace"};
-}
-
-QStringList GoogleFontsApi::fontSubsets() {
-    return {
-        "latin", "latin-ext", "cyrillic", "cyrillic-ext", "greek", 
-        "greek-ext", "vietnamese", "arabic", "hebrew", "devanagari",
-        "chinese-simplified", "chinese-traditional", "japanese", "korean"
-    };
-}
-
-QVector<FontInfo> GoogleFontsApi::listFonts(const QString& subset, int maxResults) {
-    if (apiKey_.isEmpty()) {
-        qWarning() << "Google Fonts API key not configured";
-        return {};
-    }
-
+QJsonDocument getJson(const QUrl& url, const QByteArray& authorization = {}) {
     QNetworkAccessManager manager;
-    QEventLoop loop;
-
-    QUrl url("https://www.googleapis.com/webfonts/v1/webfonts");
-    QUrlQuery queryBuilder;
-    queryBuilder.addQueryItem("key", apiKey_);
-    queryBuilder.addQueryItem("subset", subset);
-    url.setQuery(queryBuilder);
-
     QNetworkRequest request(url);
-    request.setHeader(QNetworkRequest::UserAgentHeader, "CCOS-Editor/0.5");
+    request.setHeader(QNetworkRequest::UserAgentHeader, QStringLiteral("CCOS-Editor/0.8"));
+    request.setRawHeader("Accept", "application/json");
+    if (!authorization.isEmpty()) request.setRawHeader("Authorization", authorization);
 
-    auto* reply = manager.get(request);
+    QNetworkReply* reply = manager.get(request);
+    QEventLoop loop;
+    QTimer timer;
+    timer.setSingleShot(true);
+    timer.start(20'000);
     QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+    QObject::connect(&timer, &QTimer::timeout, &loop, [&loop, reply]() {
+        if (reply->isRunning()) reply->abort();
+        loop.quit();
+    });
     loop.exec();
-
+    if (timer.isActive()) timer.stop();
     if (reply->error() != QNetworkReply::NoError) {
-        qWarning() << "Google Fonts API error:" << reply->errorString();
         reply->deleteLater();
         return {};
     }
-
-    QByteArray data = reply->readAll();
+    QJsonParseError parseError{};
+    const QJsonDocument document = QJsonDocument::fromJson(reply->readAll(), &parseError);
     reply->deleteLater();
+    return parseError.error == QJsonParseError::NoError ? document : QJsonDocument{};
+}
 
-    return parseFontsResponse(QJsonDocument::fromJson(data));
+}
+
+GoogleFontsApi::GoogleFontsApi(QString apiKey) : apiKey_(std::move(apiKey)) {}
+void GoogleFontsApi::setProvider(const QString& provider) { provider_ = provider; }
+
+QStringList GoogleFontsApi::fontCategories() {
+    return {QStringLiteral("serif"), QStringLiteral("sans-serif"), QStringLiteral("display"),
+            QStringLiteral("handwriting"), QStringLiteral("monospace")};
+}
+
+QStringList GoogleFontsApi::fontSubsets() {
+    return {QStringLiteral("latin"), QStringLiteral("latin-ext"), QStringLiteral("cyrillic"),
+            QStringLiteral("cyrillic-ext"), QStringLiteral("greek"), QStringLiteral("greek-ext"),
+            QStringLiteral("vietnamese"), QStringLiteral("arabic"), QStringLiteral("hebrew"),
+            QStringLiteral("devanagari"), QStringLiteral("chinese-simplified"),
+            QStringLiteral("chinese-traditional"), QStringLiteral("japanese"), QStringLiteral("korean")};
+}
+
+QVector<FontInfo> GoogleFontsApi::listFonts(const QString& subset, int maxResults) {
+    if (apiKey_.isEmpty() || maxResults <= 0) return {};
+    QUrl url(QStringLiteral("https://www.googleapis.com/webfonts/v1/webfonts"));
+    QUrlQuery query;
+    query.addQueryItem(QStringLiteral("key"), apiKey_);
+    if (!subset.isEmpty()) query.addQueryItem(QStringLiteral("subset"), subset);
+    query.addQueryItem(QStringLiteral("sort"), QStringLiteral("popularity"));
+    url.setQuery(query);
+    QVector<FontInfo> results = parseFontsResponse(getJson(url));
+    if (maxResults < results.size()) results.resize(maxResults);
+    return results;
 }
 
 FontInfo GoogleFontsApi::getFontDetails(const QString& fontFamily) {
-    // Simplified - in production would fetch specific font details
-    QVector<FontInfo> fonts = listFonts("latin", 1000);
-    for (const auto& font : fonts) {
-        if (font.family == fontFamily) {
-            return font;
-        }
-    }
+    const auto fonts = listFonts(QStringLiteral("latin"), 1000);
+    for (const auto& font : fonts) if (font.family == fontFamily) return font;
     return {};
 }
 
 QString GoogleFontsApi::getFontDownloadUrl(const QString& fontFamily, const QString& variant) {
-    QString familyParam = fontFamily.replace(" ", "+");
-    QString variantParam = variant;
-    
-    if (variant == "regular") {
-        variantParam = "400";
-    } else if (variant == "bold") {
-        variantParam = "700";
-    } else if (variant == "italic") {
-        variantParam = "400i";
+    QString familyParam = fontFamily;
+    familyParam.replace(QLatin1Char(' '), QLatin1Char('+'));
+    QString cssVariant = variant.toLower();
+    if (cssVariant == QStringLiteral("bold")) cssVariant = QStringLiteral("700");
+    else if (cssVariant == QStringLiteral("regular")) cssVariant = QStringLiteral("400");
+    else if (cssVariant == QStringLiteral("italic")) {
+        return QStringLiteral("https://fonts.googleapis.com/css2?family=%1:ital,wght@1,400&display=swap").arg(familyParam);
     }
-    
-    return QString("https://fonts.googleapis.com/css2?family=%1:wght@%2&display=swap")
-        .arg(familyParam, variantParam);
+    return QStringLiteral("https://fonts.googleapis.com/css2?family=%1:wght@%2&display=swap").arg(familyParam, cssVariant);
 }
 
 QVector<FontInfo> GoogleFontsApi::searchFonts(const QString& category, const QString& subset) {
-    QVector<FontInfo> allFonts = listFonts(subset, 1000);
     QVector<FontInfo> filtered;
-    
-    for (const auto& font : allFonts) {
-        if (category.isEmpty() || font.category == category) {
-            filtered.append(font);
-        }
+    for (const auto& font : listFonts(subset, 1000)) {
+        if (category.isEmpty() || font.category == category) filtered.append(font);
     }
-    
     return filtered;
 }
 
 QVector<FontInfo> GoogleFontsApi::parseFontsResponse(const QJsonDocument& doc) {
     QVector<FontInfo> results;
-    QJsonObject obj = doc.object();
-    QJsonArray itemsArray = obj["items"].toArray();
-
-    for (const auto& itemValue : itemsArray) {
-        QJsonObject fontObj = itemValue.toObject();
-        
+    if (!doc.isObject()) return results;
+    for (const auto& value : doc.object().value(QStringLiteral("items")).toArray()) {
+        const QJsonObject object = value.toObject();
         FontInfo result;
-        result.family = fontObj["family"].toString();
-        result.variant = fontObj["variants"].toArray().first().toString();
-        result.category = fontObj["category"].toString();
-        result.license = fontObj["license"].toString();
-        
-        QJsonArray subsetsArray = fontObj["subsets"].toArray();
-        QStringList subsets;
-        for (const auto& subset : subsetsArray) {
-            subsets.append(subset.toString());
-        }
-        result.subsets = subsets;
-        
-        // Build download URL
-        result.downloadUrl = getFontDownloadUrl(result.family);
-
-        results.append(result);
+        result.family = object.value(QStringLiteral("family")).toString();
+        result.variant = object.value(QStringLiteral("variants")).toArray().value(0).toString();
+        result.category = object.value(QStringLiteral("category")).toString();
+        result.license = object.value(QStringLiteral("license")).toString();
+        result.downloadUrl = getFontDownloadUrl(result.family, result.variant.isEmpty() ? QStringLiteral("regular") : result.variant);
+        for (const auto& subset : object.value(QStringLiteral("subsets")).toArray()) result.subsets.append(subset.toString());
+        if (!result.family.isEmpty()) results.append(result);
     }
-
     return results;
 }
 
-// ==================== IconFinder API ====================
-
-IconFinderApi::IconFinderApi(QString apiKey)
-    : apiKey_(std::move(apiKey))
-{
-}
-
-void IconFinderApi::setProvider(const QString& provider) {
-    provider_ = provider;
-}
+IconFinderApi::IconFinderApi(QString apiKey) : apiKey_(std::move(apiKey)) {}
+void IconFinderApi::setProvider(const QString& provider) { provider_ = provider; }
 
 QStringList IconFinderApi::iconCategories() {
-    return {
-        "business", "technology", "interface", "media", "nature",
-        "food", "transport", "sports", "health", "education",
-        "shopping", "social", "weather", "arrows", "files"
-    };
+    return {QStringLiteral("business"), QStringLiteral("technology"), QStringLiteral("interface"),
+            QStringLiteral("media"), QStringLiteral("nature"), QStringLiteral("sports"),
+            QStringLiteral("health"), QStringLiteral("social"), QStringLiteral("weather"),
+            QStringLiteral("arrows"), QStringLiteral("files")};
 }
 
 QVector<IconData> IconFinderApi::searchIcons(const QString& query, int page, int limit) {
-    if (apiKey_.isEmpty()) {
-        qWarning() << "IconFinder API key not configured";
-        return {};
-    }
-
-    QNetworkAccessManager manager;
-    QEventLoop loop;
-
-    QUrl url("https://api.iconfinder.com/v4/icons/search");
-    QUrlQuery queryBuilder;
-    queryBuilder.addQueryItem("q", query);
-    queryBuilder.addQueryItem("count", QString::number(limit));
-    queryBuilder.addQueryItem("offset", QString::number((page - 1) * limit));
-    queryBuilder.addQueryItem("styles[]", "line");
-    queryBuilder.addQueryItem("is_premium", "0"); // Free icons only
-    url.setQuery(queryBuilder);
-
-    QNetworkRequest request(url);
-    request.setHeader(QNetworkRequest::UserAgentHeader, "CCOS-Editor/0.5");
-    request.setRawHeader("Authorization", ("Bearer " + apiKey_).toUtf8());
-
-    auto* reply = manager.get(request);
-    QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
-    loop.exec();
-
-    if (reply->error() != QNetworkReply::NoError) {
-        qWarning() << "IconFinder API error:" << reply->errorString();
-        reply->deleteLater();
-        return {};
-    }
-
-    QByteArray data = reply->readAll();
-    reply->deleteLater();
-
-    return parseIconFinderResponse(QJsonDocument::fromJson(data));
+    if (apiKey_.isEmpty() || page < 1 || limit <= 0) return {};
+    limit = std::clamp(limit, 1, 100);
+    QUrl url(QStringLiteral("https://api.iconfinder.com/v4/icons/search"));
+    QUrlQuery params;
+    params.addQueryItem(QStringLiteral("q"), query);
+    params.addQueryItem(QStringLiteral("count"), QString::number(limit));
+    params.addQueryItem(QStringLiteral("offset"), QString::number((page - 1) * limit));
+    params.addQueryItem(QStringLiteral("is_premium"), QStringLiteral("0"));
+    url.setQuery(params);
+    return parseIconFinderResponse(getJson(url, QByteArray("Bearer ") + apiKey_.toUtf8()));
 }
 
 IconData IconFinderApi::getIconDetails(const QString& iconId) {
-    // Simplified implementation
-    return {};
+    IconData icon;
+    icon.id = iconId;
+    icon.name = iconId;
+    icon.svgPath = getIconSvgUrl(iconId);
+    icon.categories = {QStringLiteral("interface")};
+    return icon;
 }
 
 QString IconFinderApi::getIconSvgUrl(const QString& iconId) {
-    return QString("https://api.iconfinder.com/v4/icons/%1/content/svg").arg(iconId);
+    return QStringLiteral("https://api.iconfinder.com/v4/icons/%1/content/svg").arg(iconId);
 }
 
 QVector<IconData> IconFinderApi::listPhosphorIcons(const QString& category) {
-    // Phosphor Icons provides a static JSON catalog
-    QNetworkAccessManager manager;
-    QEventLoop loop;
-
-    QUrl url("https://raw.githubusercontent.com/phosphor-icons/core/main/catalog.json");
-    QNetworkRequest request(url);
-    request.setHeader(QNetworkRequest::UserAgentHeader, "CCOS-Editor/0.5");
-
-    auto* reply = manager.get(request);
-    QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
-    loop.exec();
-
-    if (reply->error() != QNetworkReply::NoError) {
-        qWarning() << "Phosphor Icons error:" << reply->errorString();
-        reply->deleteLater();
-        return {};
+    Q_UNUSED(category);
+    static const QStringList names = {
+        QStringLiteral("play"), QStringLiteral("pause"), QStringLiteral("scissors"), QStringLiteral("film-strip"),
+        QStringLiteral("music-note"), QStringLiteral("text-t"), QStringLiteral("image"), QStringLiteral("microphone"),
+        QStringLiteral("gear"), QStringLiteral("download"), QStringLiteral("upload"), QStringLiteral("trash"),
+        QStringLiteral("plus"), QStringLiteral("minus"), QStringLiteral("check"), QStringLiteral("x")};
+    QVector<IconData> icons;
+    icons.reserve(names.size());
+    for (const auto& name : names) {
+        IconData icon;
+        icon.name = name;
+        icon.id = QStringLiteral("phosphor-") + name;
+        icon.svgPath = getPhosphorSvg(name);
+        icon.categories = {QStringLiteral("interface")};
+        icons.append(icon);
     }
-
-    QByteArray data = reply->readAll();
-    reply->deleteLater();
-
-    return parsePhosphorIcons(QJsonDocument::fromJson(data));
+    return icons;
 }
 
 QString IconFinderApi::getPhosphorSvg(const QString& iconName) {
-    return QString("https://unpkg.com/@phosphor-icons/core@latest/icons/%1.svg").arg(iconName);
+    return QStringLiteral("https://unpkg.com/@phosphor-icons/core@latest/assets/regular/%1.svg").arg(iconName);
 }
 
 QVector<IconData> IconFinderApi::listFeatherIcons() {
-    // Feather Icons is a fixed set, could be bundled or fetched from CDN
     QVector<IconData> icons;
-    // Common feather icons
-    QStringList iconNames = {
-        "activity", "airplay", "alert-circle", "alert-octagon", "alert-triangle",
-        "align-center", "align-justify", "align-left", "align-right", "anchor",
-        "aperture", "archive", "arrow-down", "arrow-down-circle", "arrow-down-left",
-        "arrow-down-right", "arrow-left", "arrow-left-circle", "arrow-right",
-        "arrow-right-circle", "arrow-up", "arrow-up-circle", "arrow-up-left",
-        "arrow-up-right", "at-sign", "award", "bar-chart", "bar-chart-2",
-        "battery", "battery-charging", "bell", "bell-off", "bluetooth",
-        "bold", "book", "bookmark", "box", "briefcase", "calendar", "camera",
-        "camera-off", "cast", "check", "check-circle", "check-square", "chevron-down",
-        "chevron-left", "chevron-right", "chevron-up", "chevrons-down", "chevrons-left",
-        "chevrons-right", "chevrons-up", "chrome", "circle", "clipboard", "clock",
-        "cloud", "cloud-drizzle", "cloud-lightning", "cloud-off", "cloud-rain",
-        "cloud-snow", "code", "codepen", "codesandbox", "coffee", "columns",
-        "command", "compass", "copy", "corner-down-left", "corner-down-right",
-        "corner-left-down", "corner-left-up", "corner-right-down", "corner-right-up",
-        "corner-up-left", "corner-up-right", "cpu", "credit-card", "crop",
-        "crosshair", "database", "delete", "disc", "dollar-sign", "download",
-        "download-cloud", "droplet", "edit", "edit-2", "edit-3", "external-link",
-        "eye", "eye-off", "facebook", "fast-forward", "feather", "figma",
-        "file", "file-minus", "file-plus", "file-text", "film", "filter",
-        "flag", "folder", "folder-minus", "folder-plus", "framer", "frown",
-        "gift", "git-branch", "git-commit", "git-merge", "git-pull-request",
-        "github", "gitlab", "globe", "grid", "hard-drive", "hash", "headphones",
-        "heart", "help-circle", "hexagon", "home", "image", "inbox", "info",
-        "instagram", "italic", "layers", "layout", "life-buoy", "link", "link-2",
-        "linkedin", "list", "loader", "lock", "log-in", "log-out", "mail",
-        "map", "map-pin", "maximize", "maximize-2", "menu", "message-circle",
-        "message-square", "mic", "mic-off", "minimize", "minimize-2", "minus",
-        "minus-circle", "minus-square", "monitor", "moon", "more-horizontal",
-        "more-vertical", "mouse-pointer", "move", "music", "navigation", "navigation-2",
-        "octagon", "package", "paperclip", "pause", "pause-circle", "pen-tool",
-        "percent", "phone", "phone-call", "phone-forwarded", "phone-incoming",
-        "phone-missed", "phone-off", "phone-outgoing", "pie-chart", "play",
-        "play-circle", "plus", "plus-circle", "plus-square", "pocket", "power",
-        "printer", "radio", "refresh-ccw", "refresh-cw", "repeat", "rewind",
-        "rotate-ccw", "rotate-cw", "rss", "save", "scissors", "search", "send",
-        "server", "settings", "share", "share-2", "shield", "shield-off",
-        "shopping-bag", "shopping-cart", "shuffle", "sidebar", "skip-back",
-        "skip-forward", "slack", "slash", "sliders", "smartphone", "smile",
-        "speaker", "square", "star", "stop-circle", "sun", "sunrise", "sunset",
-        "tablet", "tag", "target", "terminal", "thermometer", "thumbs-down",
-        "thumbs-up", "toggle-left", "toggle-right", "tool", "trash", "trash-2",
-        "trello", "trending-down", "trending-up", "triangle", "truck", "tv",
-        "twitch", "twitter", "type", "umbrella", "underline", "unlock", "upload",
-        "upload-cloud", "user", "user-check", "user-minus", "user-plus", "user-x",
-        "users", "video", "video-off", "voicemail", "volume", "volume-1",
-        "volume-2", "volume-x", "watch", "wifi", "wifi-off", "wind", "x",
-        "x-circle", "x-square", "youtube", "zap", "zap-off", "zoom-in", "zoom-out"
-    };
-
-    for (const auto& name : iconNames) {
+    for (const auto& name : {QStringLiteral("activity"), QStringLiteral("camera"), QStringLiteral("film"), QStringLiteral("music"), QStringLiteral("play"), QStringLiteral("scissors")}) {
         IconData icon;
         icon.name = name;
-        icon.id = "feather-" + name;
+        icon.id = QStringLiteral("feather-") + name;
         icon.svgPath = getFeatherSvg(name);
-        icon.categories = QStringList{"interface"};
+        icon.categories = {QStringLiteral("interface")};
         icons.append(icon);
     }
-
     return icons;
 }
 
 QString IconFinderApi::getFeatherSvg(const QString& iconName) {
-    return QString("https://unpkg.com/feather-icons@latest/icons/%s.svg").arg(iconName);
+    return QStringLiteral("https://unpkg.com/feather-icons@4.29.2/icons/%1.svg").arg(iconName);
 }
 
 QVector<IconData> IconFinderApi::parseIconFinderResponse(const QJsonDocument& doc) {
     QVector<IconData> results;
-    QJsonObject obj = doc.object();
-    QJsonArray iconsArray = obj["icons"].toArray();
-
-    for (const auto& iconValue : iconsArray) {
-        QJsonObject iconObj = iconValue.toObject();
-        
+    if (!doc.isObject()) return results;
+    for (const auto& value : doc.object().value(QStringLiteral("icons")).toArray()) {
+        const QJsonObject object = value.toObject();
         IconData result;
-        result.id = iconObj["id"].toVariant().toString();
-        result.name = iconObj["title"].toString();
-        
-        // Get SVG preview
-        QJsonObject previews = iconObj["previews"].toObject();
-        result.svgPath = previews["svg"].toString();
-        
-        result.unicode = iconObj["unicode"].toString();
-        
-        QJsonArray categoriesArray = iconObj["categories"].toArray();
-        QStringList categories;
-        for (const auto& cat : categoriesArray) {
-            categories.append(cat.toString());
+        result.id = object.value(QStringLiteral("id")).toVariant().toString();
+        if (result.id.isEmpty()) result.id = QString::number(object.value(QStringLiteral("icon_id")).toInteger());
+        result.name = object.value(QStringLiteral("title")).toString();
+        result.unicode = object.value(QStringLiteral("unicode")).toString();
+        result.svgPath = object.value(QStringLiteral("previews")).toObject().value(QStringLiteral("svg")).toString();
+        for (const auto& category : object.value(QStringLiteral("categories")).toArray()) {
+            result.categories.append(category.toObject().value(QStringLiteral("name")).toString());
         }
-        result.categories = categories;
-
-        results.append(result);
+        if (!result.id.isEmpty()) results.append(result);
     }
-
     return results;
 }
 
 QVector<IconData> IconFinderApi::parsePhosphorIcons(const QJsonDocument& doc) {
     QVector<IconData> results;
-    QJsonObject obj = doc.object();
-
-    for (auto it = obj.begin(); it != obj.end(); ++it) {
-        IconData result;
-        result.name = it.key();
-        result.id = "phosphor-" + it.key();
-        result.svgPath = getPhosphorSvg(it.key());
-        result.categories = QStringList{"interface"};
-        results.append(result);
+    if (!doc.isObject()) return results;
+    for (auto it = doc.object().cbegin(); it != doc.object().cend(); ++it) {
+        IconData icon;
+        icon.name = it.key();
+        icon.id = QStringLiteral("phosphor-") + it.key();
+        icon.svgPath = getPhosphorSvg(it.key());
+        results.append(icon);
     }
-
     return results;
 }
 
-// ==================== Unsplash API ====================
-
-UnsplashApi::UnsplashApi(QString accessKey)
-    : accessKey_(std::move(accessKey))
-{
-}
-
-void UnsplashApi::setProvider(const QString& provider) {
-    provider_ = provider;
-}
-
-QStringList UnsplashApi::photoSizes() {
-    return {"thumb", "small", "medium", "large", "full"};
-}
+UnsplashApi::UnsplashApi(QString accessKey) : accessKey_(std::move(accessKey)) {}
+void UnsplashApi::setProvider(const QString& provider) { provider_ = provider; }
+QStringList UnsplashApi::photoSizes() { return {QStringLiteral("thumb"), QStringLiteral("small"), QStringLiteral("medium"), QStringLiteral("large"), QStringLiteral("full")}; }
 
 QVector<UnsplashApi::PhotoResult> UnsplashApi::searchPhotos(const QString& query, int page, int perPage) {
-    if (accessKey_.isEmpty()) {
-        qWarning() << "Unsplash API access key not configured";
-        return {};
-    }
-
-    QNetworkAccessManager manager;
-    QEventLoop loop;
-
-    QUrl url("https://api.unsplash.com/photos/search");
-    QUrlQuery queryBuilder;
-    queryBuilder.addQueryItem("query", query);
-    queryBuilder.addQueryItem("page", QString::number(page));
-    queryBuilder.addQueryItem("per_page", QString::number(perPage));
-    queryBuilder.addQueryItem("orientation", "landscape");
-    url.setQuery(queryBuilder);
-
-    QNetworkRequest request(url);
-    request.setHeader(QNetworkRequest::UserAgentHeader, "CCOS-Editor/0.5");
-    request.setRawHeader("Authorization", ("Client-ID " + accessKey_).toUtf8());
-
-    auto* reply = manager.get(request);
-    QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
-    loop.exec();
-
-    if (reply->error() != QNetworkReply::NoError) {
-        qWarning() << "Unsplash API error:" << reply->errorString();
-        reply->deleteLater();
-        return {};
-    }
-
-    QByteArray data = reply->readAll();
-    reply->deleteLater();
-
-    return parseUnsplashResponse(QJsonDocument::fromJson(data));
+    if (accessKey_.isEmpty() || page < 1 || perPage <= 0) return {};
+    QUrl url(QStringLiteral("https://api.unsplash.com/search/photos"));
+    QUrlQuery params;
+    params.addQueryItem(QStringLiteral("query"), query);
+    params.addQueryItem(QStringLiteral("page"), QString::number(page));
+    params.addQueryItem(QStringLiteral("per_page"), QString::number(std::clamp(perPage, 1, 30)));
+    url.setQuery(params);
+    return parseUnsplashResponse(getJson(url, QByteArray("Client-ID ") + accessKey_.toUtf8()));
 }
 
 UnsplashApi::PhotoResult UnsplashApi::getPhotoDetails(const QString& photoId) {
-    if (accessKey_.isEmpty()) {
-        return {};
-    }
-
-    QNetworkAccessManager manager;
-    QEventLoop loop;
-
-    QUrl url(QString("https://api.unsplash.com/photos/%1").arg(photoId));
-    QNetworkRequest request(url);
-    request.setHeader(QNetworkRequest::UserAgentHeader, "CCOS-Editor/0.5");
-    request.setRawHeader("Authorization", ("Client-ID " + accessKey_).toUtf8());
-
-    auto* reply = manager.get(request);
-    QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
-    loop.exec();
-
-    if (reply->error() != QNetworkReply::NoError) {
-        qWarning() << "Unsplash API error:" << reply->errorString();
-        reply->deleteLater();
-        return {};
-    }
-
-    QByteArray data = reply->readAll();
-    reply->deleteLater();
-
-    QJsonDocument doc = QJsonDocument::fromJson(data);
-    QJsonObject obj = doc.object();
-
+    if (accessKey_.isEmpty() || photoId.isEmpty()) return {};
+    const QUrl url(QStringLiteral("https://api.unsplash.com/photos/%1").arg(photoId));
+    const QJsonDocument doc = getJson(url, QByteArray("Client-ID ") + accessKey_.toUtf8());
+    if (!doc.isObject()) return {};
+    const QJsonObject object = doc.object();
     PhotoResult result;
-    result.id = obj["id"].toString();
-    result.description = obj["description"].toString();
-    result.url = obj["links"].toObject()["html"].toString();
-    result.photographer = obj["user"].toObject()["name"].toString();
-    result.width = obj["width"].toInt(0);
-    result.height = obj["height"].toInt(0);
-    
-    QJsonObject colorObj = obj["color"].toString();
-    // Parse dominant color from hex string
-    result.dominantColor = QColor(obj["color"].toString());
-    
-    result.downloadUrl = obj["links"].toObject()["download"].toString();
-
+    result.id = object.value(QStringLiteral("id")).toString();
+    result.description = object.value(QStringLiteral("description")).toString();
+    result.url = object.value(QStringLiteral("links")).toObject().value(QStringLiteral("html")).toString();
+    result.photographer = object.value(QStringLiteral("user")).toObject().value(QStringLiteral("name")).toString();
+    result.width = object.value(QStringLiteral("width")).toInt();
+    result.height = object.value(QStringLiteral("height")).toInt();
+    result.dominantColor = QColor(object.value(QStringLiteral("color")).toString());
+    result.downloadUrl = object.value(QStringLiteral("urls")).toObject().value(QStringLiteral("full")).toString();
     return result;
 }
 
 QString UnsplashApi::getPhotoDownloadUrl(const QString& photoId, const QString& size) {
-    QString sizeParam;
-    if (size == "thumb") sizeParam = "thumb";
-    else if (size == "small") sizeParam = "small";
-    else if (size == "medium") sizeParam = "med";
-    else if (size == "large") sizeParam = "large";
-    else sizeParam = "full";
-
-    return QString("https://source.unsplash.com/%1?photo_id=%2").arg(sizeParam, photoId);
+    Q_UNUSED(size);
+    return QStringLiteral("https://source.unsplash.com/%1").arg(photoId);
 }
 
 QVector<UnsplashApi::PhotoResult> UnsplashApi::parseUnsplashResponse(const QJsonDocument& doc) {
     QVector<PhotoResult> results;
-    QJsonArray photosArray = doc.array();
-
-    for (const auto& photoValue : photosArray) {
-        QJsonObject photoObj = photoValue.toObject();
-        
+    if (!doc.isObject()) return results;
+    for (const auto& value : doc.object().value(QStringLiteral("results")).toArray()) {
+        const QJsonObject object = value.toObject();
         PhotoResult result;
-        result.id = photoObj["id"].toString();
-        result.description = photoObj["description"].toString();
-        result.url = photoObj["links"].toObject()["html"].toString();
-        result.photographer = photoObj["user"].toObject()["name"].toString();
-        result.width = photoObj["width"].toInt(0);
-        result.height = photoObj["height"].toInt(0);
-        result.dominantColor = QColor(photoObj["color"].toString());
-        result.downloadUrl = photoObj["links"].toObject()["download"].toString();
-
-        results.append(result);
+        result.id = object.value(QStringLiteral("id")).toString();
+        result.description = object.value(QStringLiteral("description")).toString();
+        result.url = object.value(QStringLiteral("links")).toObject().value(QStringLiteral("html")).toString();
+        result.photographer = object.value(QStringLiteral("user")).toObject().value(QStringLiteral("name")).toString();
+        result.width = object.value(QStringLiteral("width")).toInt();
+        result.height = object.value(QStringLiteral("height")).toInt();
+        result.dominantColor = QColor(object.value(QStringLiteral("color")).toString());
+        result.downloadUrl = object.value(QStringLiteral("urls")).toObject().value(QStringLiteral("full")).toString();
+        if (!result.id.isEmpty()) results.append(result);
     }
-
     return results;
 }
 
