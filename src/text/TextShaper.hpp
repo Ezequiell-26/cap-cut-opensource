@@ -1,8 +1,8 @@
 #pragma once
 
-#include <QChar>
-#include <QVector>
+#include <QByteArray>
 #include <QString>
+#include <QVector>
 
 namespace ccos::text {
 
@@ -16,13 +16,21 @@ struct GlyphPlacement {
 
 class TextShaper final {
 public:
-    // Shapes UTF-8 text using HarfBuzz when the optional backend is available.
-    // The fallback preserves Unicode code points as glyph IDs and zeroes
-    // offsets so callers can still render or inspect a deterministic run.
-    [[nodiscard]] static QVector<GlyphPlacement> shape(const QString& text,
-                                                       const QString& language = {},
-                                                       const QString& script = {},
-                                                       bool rightToLeft = false);
+    [[nodiscard]] static QVector<GlyphPlacement> shape(
+        const QString& text,
+        const QString& language = {},
+        const QString& script = {},
+        bool rightToLeft = false);
+
+    // When HarfBuzz is enabled and valid font bytes are supplied, this overload
+    // performs actual font-aware shaping. No font bytes means deterministic
+    // Unicode fallback rather than pretending that glyph shaping occurred.
+    [[nodiscard]] static QVector<GlyphPlacement> shape(
+        const QString& text,
+        const QByteArray& fontData,
+        const QString& language = {},
+        const QString& script = {},
+        bool rightToLeft = false);
 };
 
 } // namespace ccos::text
