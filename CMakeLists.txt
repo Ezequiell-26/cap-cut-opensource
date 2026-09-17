@@ -328,6 +328,7 @@ if(CCOS_BUILD_TESTS AND NOT EMSCRIPTEN)
         tests/unit/audio/AudioMeterTest.cpp
         tests/unit/color/ColorPipelineTest.cpp
         tests/unit/render/RenderQueueStoreTest.cpp
+        tests/unit/graphics/GltfAssetInspectorTest.cpp
         tests/unit/plugins/PluginPolicyTest.cpp
         tests/unit/ai/AICommandPlanTest.cpp
     )
