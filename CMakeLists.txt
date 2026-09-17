@@ -34,7 +34,6 @@ option(CCOS_ENABLE_CULTURAL_MEDIA_API "Build open cultural-heritage media API ad
 option(CCOS_ENABLE_LLAMA_SERVER_PROFILE "Enable the local llama.cpp/llama-server provider profile" ON)
 
 if(EMSCRIPTEN)
-    # Browser builds keep the shared C++/Qt editor logic and disable host-only integrations.
     set(CCOS_BUILD_TESTS OFF CACHE BOOL "" FORCE)
     set(CCOS_BUILD_CLI OFF CACHE BOOL "" FORCE)
     set(CCOS_ENABLE_LOCAL_AUTOMATION_API OFF CACHE BOOL "" FORCE)
@@ -132,12 +131,11 @@ set(CCOS_SOURCES
     src/render/TextComposer.cpp
     src/render/HardwareCapabilities.cpp
     src/render/RenderExecutor.cpp
+    src/web/BrowserStorage.cpp
+    src/web/WebFfmpegRenderer.cpp
 )
 
 if(EMSCRIPTEN)
-    # These implementations require a host executable, native process spawning,
-    # or native media tooling. The browser target replaces those responsibilities
-    # with browser APIs and the WebAssembly media runtime.
     list(REMOVE_ITEM CCOS_SOURCES
         src/core/ProcessRunner.cpp
         src/core/JobSystem.cpp
@@ -242,7 +240,14 @@ target_link_libraries(ccos_editor PRIVATE ccos_core Qt6::Widgets Qt6::Multimedia
 target_include_directories(ccos_editor PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 if(EMSCRIPTEN)
     target_compile_definitions(ccos_editor PRIVATE CCOS_PLATFORM_WEB=1)
-    target_link_options(ccos_editor PRIVATE "-sALLOW_MEMORY_GROWTH=1" "-sASSERTIONS=0")
+    target_link_options(ccos_editor PRIVATE
+        "-sALLOW_MEMORY_GROWTH=1"
+        "-sASSERTIONS=0"
+        "-sFORCE_FILESYSTEM=1"
+        "-sEXPORTED_RUNTIME_METHODS=ccall"
+        "-sENVIRONMENT=web"
+        "-lidbfs.js"
+    )
     set_target_properties(ccos_editor PROPERTIES QT_WASM_INITIAL_MEMORY "268435456" OUTPUT_NAME "ccos-editor")
 endif()
 if(MSVC)

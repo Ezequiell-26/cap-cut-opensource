@@ -1,8 +1,14 @@
 #include "ui/MainWindow.hpp"
 
 #include "project/ProjectSerializer.hpp"
+#include "render/ExportPresets.hpp"
 #include "timeline/EditCommands.hpp"
+#include "web/BrowserStorage.hpp"
+#include "web/WebFfmpegRenderer.hpp"
 
+#include <QAbstractItemView>
+#include <QAction>
+#include <QApplication>
 #include <QAudioOutput>
 #include <QCloseEvent>
 #include <QDir>
@@ -14,6 +20,7 @@
 #include <QInputDialog>
 #include <QKeySequence>
 #include <QLabel>
+#include <QLineEdit>
 #include <QListWidget>
 #include <QMediaPlayer>
 #include <QMessageBox>
@@ -28,10 +35,11 @@
 #include <QUrl>
 #include <QVBoxLayout>
 #include <QVideoWidget>
-#include <QUuid>
 
-#include <functional>
+#include <cstddef>
+#include <limits>
 #include <memory>
+#include <utility>
 
 namespace ccos::ui {
 namespace {
@@ -49,10 +57,22 @@ QString safeFileName(QString name) {
     return name.left(128);
 }
 
+QString idString(const ccos::core::Uuid& id) {
+    return QString::fromStdString(id.toString());
+}
+
+QString stableProjectPath(const ccos::project::Project& project) {
+    return QStringLiteral("/ccos/projects/%1.ccos").arg(idString(project.id()));
+}
+
+QString recoveryProjectPath(const ccos::project::Project& project) {
+    return QStringLiteral("/ccos/recovery/%1.ccos").arg(idString(project.id()));
+}
+
 QString makeWebStoragePath(const QString& fileName, const QString& directory) {
     QDir().mkpath(directory);
     return QDir(directory).filePath(
-        QUuid::createUuid().toString(QUuid::WithoutBraces) + QLatin1Char('_') + safeFileName(fileName));
+        idString(ccos::core::Uuid{}) + QLatin1Char('_') + safeFileName(fileName));
 }
 
 bool writeWebBytes(const QString& path, const QByteArray& bytes, qsizetype maximum, QString* error) {
@@ -65,7 +85,6 @@ bool writeWebBytes(const QString& path, const QByteArray& bytes, qsizetype maxim
             .arg(maximum / (1024 * 1024));
         return false;
     }
-
     QSaveFile file(path);
     if (!file.open(QIODevice::WriteOnly)) {
         if (error) *error = file.errorString();
@@ -90,10 +109,8 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     player_->setAudioOutput(audioOutput_);
     audioOutput_->setVolume(1.0);
 
-    renderExecutor_ = new ccos::render::RenderExecutor(this);
-
     autosaveTimer_ = new QTimer(this);
-    autosaveTimer_->setInterval(60000);
+    autosaveTimer_->setInterval(10000);
     connect(autosaveTimer_, &QTimer::timeout, this, &MainWindow::autosave);
     autosaveTimer_->start();
 
@@ -102,6 +119,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     refreshMediaBin();
     refreshTimeline();
     setDirty(false);
+    statusLabel_->setText(QStringLiteral("Initializing browser storage…"));
 
     connect(player_, &QMediaPlayer::durationChanged, this, [this](qint64 duration) {
         const qint64 bounded = qBound<qint64>(0, duration, std::numeric_limits<int>::max());
@@ -109,44 +127,57 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
         const int row = mediaBin_->currentRow();
         if (row >= 0 && row < static_cast<int>(project_.assets().size())) {
             project_.assets()[static_cast<std::size_t>(row)].metadata().durationMs = duration;
+            setDirty(true);
         }
     });
     connect(player_, &QMediaPlayer::positionChanged, this, [this](qint64 position) {
-        if (!timelineSlider_->isSliderDown()) timelineSlider_->setValue(static_cast<int>(qBound<qint64>(0, position, std::numeric_limits<int>::max())));
+        if (!timelineSlider_->isSliderDown()) {
+            timelineSlider_->setValue(static_cast<int>(qBound<qint64>(0, position, std::numeric_limits<int>::max())));
+        }
     });
     connect(player_, &QMediaPlayer::errorOccurred, this, [this](QMediaPlayer::Error, const QString& message) {
-        statusLabel_->setText(QStringLiteral("Playback error: %1").arg(message));
+        previewLabel_->setText(QStringLiteral("Playback error: %1").arg(message));
+        previewLabel_->setVisible(true);
+        statusLabel_->setText(message);
     });
 
-    const QDir recoveryDirectory(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + QStringLiteral("/Recovery"));
-    if (recoveryDirectory.exists()) {
-        const QFileInfoList candidates = recoveryDirectory.entryInfoList(
-            QStringList() << QStringLiteral("*.ccos"), QDir::Files | QDir::Readable, QDir::Time);
-        if (!candidates.isEmpty()) {
-            QString error;
-            ccos::project::Project recovered;
-            if (ccos::project::ProjectSerializer::load(recovered, candidates.first().absoluteFilePath(), &error)) {
-                const auto answer = QMessageBox::question(
-                    this, QStringLiteral("Recover Project"),
-                    QStringLiteral("A recoverable project snapshot was found. Recover it?"));
-                if (answer == QMessageBox::Yes) {
-                    project_ = std::move(recovered);
-                    projectPath_.clear();
-                    commandStack_.clear();
-                    refreshMediaBin();
-                    refreshTimeline();
-                    setDirty(true);
-                }
-            }
+    ccos::web::BrowserStorage::initialize([this](bool ok, const QString& error) {
+        if (!ok) {
+            statusLabel_->setText(QStringLiteral("Persistent storage unavailable: %1").arg(error));
+            return;
         }
-    }
-}
+        QDir().mkpath(QStringLiteral("/ccos/media"));
+        QDir().mkpath(QStringLiteral("/ccos/projects"));
+        QDir().mkpath(QStringLiteral("/ccos/recovery"));
+        statusLabel_->setText(QStringLiteral("Browser storage ready"));
 
-QString MainWindow::recoveryPath() const {
-    const QString root = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
-    const QString directory = root + QStringLiteral("/Recovery");
-    QDir().mkpath(directory);
-    return QDir(directory).filePath(QString::fromStdString(project_.id().toString()) + QStringLiteral(".ccos"));
+        const QDir recovery(QStringLiteral("/ccos/recovery"));
+        const QFileInfoList candidates = recovery.entryInfoList(QStringList() << QStringLiteral("*.ccos"),
+                                                                 QDir::Files | QDir::Readable, QDir::Time);
+        if (candidates.isEmpty()) return;
+
+        ccos::project::Project recovered;
+        QString loadError;
+        if (!ccos::project::ProjectSerializer::load(recovered, candidates.first().absoluteFilePath(), &loadError)) {
+            statusLabel_->setText(QStringLiteral("Recovery snapshot ignored: %1").arg(loadError));
+            return;
+        }
+        const auto answer = QMessageBox::question(
+            this, QStringLiteral("Recover Project"),
+            QStringLiteral("A recoverable project snapshot was found. Recover it?"),
+            QMessageBox::Yes | QMessageBox::No, QMessageBox::Yes);
+        if (answer != QMessageBox::Yes) return;
+
+        player_->stop();
+        commandStack_.clear();
+        project_ = std::move(recovered);
+        projectPath_ = stableProjectPath(project_);
+        refreshMediaBin();
+        refreshTimeline();
+        updateSelection();
+        setDirty(true);
+        statusLabel_->setText(QStringLiteral("Recovered project"));
+    });
 }
 
 void MainWindow::setDirty(bool dirty) {
@@ -165,7 +196,7 @@ bool MainWindow::confirmDocumentTransition() {
         saveProject();
         return !dirty_;
     }
-    QFile::remove(recoveryPath());
+    QFile::remove(recoveryProjectPath(project_));
     setDirty(false);
     return true;
 }
@@ -173,11 +204,13 @@ bool MainWindow::confirmDocumentTransition() {
 void MainWindow::autosave() {
     if (!dirty_) return;
     QString error;
-    if (!ccos::project::ProjectSerializer::save(project_, recoveryPath(), &error)) {
+    const QString path = recoveryProjectPath(project_);
+    if (!ccos::project::ProjectSerializer::save(project_, path, &error)) {
         statusLabel_->setText(QStringLiteral("Autosave failed: %1").arg(error));
         return;
     }
-    statusLabel_->setText(QStringLiteral("Autosaved locally in this browser session"));
+    ccos::web::BrowserStorage::sync();
+    statusLabel_->setText(QStringLiteral("Autosaved locally"));
 }
 
 void MainWindow::closeEvent(QCloseEvent* event) {
@@ -197,24 +230,29 @@ void MainWindow::buildUi() {
     root->setSpacing(8);
 
     auto* split = new QSplitter(Qt::Horizontal, central);
+
     auto* left = new QWidget(split);
     auto* leftLayout = new QVBoxLayout(left);
     auto* mediaTitle = new QLabel(QStringLiteral("MEDIA BIN"), left);
     mediaTitle->setStyleSheet(QStringLiteral("font-weight:700; letter-spacing:1px;"));
     leftLayout->addWidget(mediaTitle);
     mediaBin_ = new QListWidget(left);
+    mediaBin_->setSelectionMode(QAbstractItemView::SingleSelection);
     leftLayout->addWidget(mediaBin_, 1);
     connect(mediaBin_, &QListWidget::itemSelectionChanged, this, &MainWindow::updateSelection);
     auto* addButton = new QPushButton(QStringLiteral("Add to Timeline"), left);
     connect(addButton, &QPushButton::clicked, this, &MainWindow::addSelectedToTimeline);
     leftLayout->addWidget(addButton);
+    auto* relinkButton = new QPushButton(QStringLiteral("Relink Missing Media"), left);
+    connect(relinkButton, &QPushButton::clicked, this, &MainWindow::relinkMissingMedia);
+    leftLayout->addWidget(relinkButton);
 
     auto* center = new QWidget(split);
     auto* centerLayout = new QVBoxLayout(center);
     auto* videoWidget = new QVideoWidget(center);
     videoWidget->setMinimumSize(640, 360);
     videoWidget->setStyleSheet(QStringLiteral("background:#111; border:1px solid #2a2a2a;"));
-    player_->setVideoOutput(videoWidget);
+    player_->setVideoOutput(videoWidget->videoSink());
     previewLabel_ = new QLabel(QStringLiteral("Import a media file to begin"), videoWidget);
     previewLabel_->setAlignment(Qt::AlignCenter);
     previewLabel_->setAttribute(Qt::WA_TransparentForMouseEvents);
@@ -233,7 +271,11 @@ void MainWindow::buildUi() {
     auto* back = new QPushButton(QStringLiteral("−5s"), center);
     auto* play = new QPushButton(QStringLiteral("▶ / ❚❚"), center);
     auto* forward = new QPushButton(QStringLiteral("+5s"), center);
-    playback->addStretch(); playback->addWidget(back); playback->addWidget(play); playback->addWidget(forward); playback->addStretch();
+    playback->addStretch();
+    playback->addWidget(back);
+    playback->addWidget(play);
+    playback->addWidget(forward);
+    playback->addStretch();
     centerLayout->addLayout(playback);
     connect(play, &QPushButton::clicked, this, &MainWindow::togglePlayback);
     connect(back, &QPushButton::clicked, this, [this] { player_->setPosition(qMax<qint64>(0, player_->position() - 5000)); });
@@ -248,10 +290,15 @@ void MainWindow::buildUi() {
     rightLayout->addRow(QStringLiteral("Scale"), new QLabel(QStringLiteral("100%"), right));
     rightLayout->addRow(QStringLiteral("Rotation"), new QLabel(QStringLiteral("0°"), right));
     rightLayout->addRow(QStringLiteral("Opacity"), new QLabel(QStringLiteral("100%"), right));
-    rightLayout->addRow(QStringLiteral("Status"), new QLabel(QStringLiteral("Browser / WebAssembly"), right));
+    rightLayout->addRow(QStringLiteral("Engine"), new QLabel(QStringLiteral("C++ / Qt / WebAssembly"), right));
+    rightLayout->addRow(QStringLiteral("Storage"), new QLabel(QStringLiteral("Persistent browser storage"), right));
 
-    split->addWidget(left); split->addWidget(center); split->addWidget(right);
-    split->setStretchFactor(0, 1); split->setStretchFactor(1, 4); split->setStretchFactor(2, 1);
+    split->addWidget(left);
+    split->addWidget(center);
+    split->addWidget(right);
+    split->setStretchFactor(0, 1);
+    split->setStretchFactor(1, 4);
+    split->setStretchFactor(2, 1);
     root->addWidget(split, 3);
 
     auto* timelineTitle = new QLabel(QStringLiteral("TIMELINE"), central);
@@ -264,7 +311,7 @@ void MainWindow::buildUi() {
     root->addWidget(timeline_, 1);
 
     setCentralWidget(central);
-    statusLabel_ = new QLabel(QStringLiteral("Ready — WebAssembly"), this);
+    statusLabel_ = new QLabel(QStringLiteral("Starting…"), this);
     statusBar()->addPermanentWidget(statusLabel_);
     setStyleSheet(QStringLiteral(
         "QMainWindow { background:#0d0f12; color:#e5e7eb; }"
@@ -293,8 +340,8 @@ void MainWindow::buildMenus() {
     auto* importAction = file->addAction(QStringLiteral("Import Media…"));
     connect(importAction, &QAction::triggered, this, &MainWindow::importMedia);
     file->addSeparator();
-    auto* quitAction = file->addAction(QStringLiteral("Quit"));
-    connect(quitAction, &QAction::triggered, qApp, &QApplication::quit);
+    auto* quitAction = file->addAction(QStringLiteral("Close Editor"));
+    connect(quitAction, &QAction::triggered, this, [this] { close(); });
 
     auto* edit = menuBar()->addMenu(QStringLiteral("Edit"));
     auto* undoAction = edit->addAction(QStringLiteral("Undo"));
@@ -305,13 +352,18 @@ void MainWindow::buildMenus() {
     connect(redoAction, &QAction::triggered, this, &MainWindow::redo);
 
     auto* exportMenu = menuBar()->addMenu(QStringLiteral("Export"));
+    auto* exportVideo = exportMenu->addAction(QStringLiteral("Export Video…"));
+    connect(exportVideo, &QAction::triggered, this, &MainWindow::exportTimeline);
     auto* projectExport = exportMenu->addAction(QStringLiteral("Download Project (.ccos)…"));
     connect(projectExport, &QAction::triggered, this, &MainWindow::saveProject);
+    auto* cancelExport = exportMenu->addAction(QStringLiteral("Cancel Export"));
+    connect(cancelExport, &QAction::triggered, this, &MainWindow::cancelRender);
 
     auto* toolbar = addToolBar(QStringLiteral("Main"));
     toolbar->setMovable(false);
     toolbar->addAction(QStringLiteral("Import"), this, &MainWindow::importMedia);
     toolbar->addAction(QStringLiteral("Save"), this, &MainWindow::saveProject);
+    toolbar->addAction(QStringLiteral("Export"), this, &MainWindow::exportTimeline);
     toolbar->addSeparator();
     toolbar->addAction(QStringLiteral("Undo"), this, &MainWindow::undo);
     toolbar->addAction(QStringLiteral("Redo"), this, &MainWindow::redo);
@@ -323,41 +375,42 @@ void MainWindow::newProject() {
     const QString name = QInputDialog::getText(this, QStringLiteral("New Project"), QStringLiteral("Project name:"), QLineEdit::Normal, QStringLiteral("Untitled Project"), &ok);
     if (!ok) return;
     player_->stop();
+    QFile::remove(recoveryProjectPath(project_));
     commandStack_.clear();
-    QFile::remove(recoveryPath());
     project_ = ccos::project::Project(name.trimmed().isEmpty() ? QStringLiteral("Untitled Project") : name.trimmed());
     projectPath_.clear();
     refreshMediaBin();
     refreshTimeline();
     setDirty(false);
+    statusLabel_->setText(QStringLiteral("New project created"));
 }
 
 QString MainWindow::projectDialogPath(bool save) const {
     Q_UNUSED(save);
-    return QStringLiteral("/ccos/projects/current.ccos");
+    return projectPath_.isEmpty() ? stableProjectPath(project_) : projectPath_;
 }
 
 void MainWindow::saveProject() {
+    const QString path = projectDialogPath(true);
     QString error;
-    const QString virtualPath = projectDialogPath(true);
-    if (!ccos::project::ProjectSerializer::save(project_, virtualPath, &error)) {
+    if (!ccos::project::ProjectSerializer::save(project_, path, &error)) {
         QMessageBox::critical(this, QStringLiteral("Save failed"), error);
         return;
     }
-
-    QFile file(virtualPath);
+    QFile file(path);
     if (!file.open(QIODevice::ReadOnly)) {
         QMessageBox::critical(this, QStringLiteral("Save failed"), file.errorString());
         return;
     }
     const QByteArray bytes = file.readAll();
-    const QString hint = safeFileName(project_.name()) + QStringLiteral(".ccos");
-    QFileDialog::saveFileContent(bytes, hint, this);
-    projectPath_ = virtualPath;
-    QFile::remove(virtualPath);
-    QFile::remove(recoveryPath());
+    QFileDialog::saveFileContent(bytes, safeFileName(project_.name()) + QStringLiteral(".ccos"), this);
+    projectPath_ = path;
+    QFile::remove(recoveryProjectPath(project_));
     setDirty(false);
-    statusLabel_->setText(QStringLiteral("Project download started"));
+    ccos::web::BrowserStorage::sync([this](bool ok, const QString& message) {
+        if (!ok) statusLabel_->setText(QStringLiteral("Saved in memory, browser persistence failed: %1").arg(message));
+    });
+    statusLabel_->setText(QStringLiteral("Project saved and download started"));
 }
 
 void MainWindow::openProject() {
@@ -381,7 +434,7 @@ void MainWindow::openProject() {
             self->statusLabel_->setText(QStringLiteral("Open failed: %1").arg(error));
             return;
         }
-        QFile::remove(self->recoveryPath());
+        QFile::remove(recoveryProjectPath(self->project_));
         self->player_->stop();
         self->commandStack_.clear();
         self->project_ = std::move(loaded);
@@ -390,6 +443,7 @@ void MainWindow::openProject() {
         self->refreshTimeline();
         self->setDirty(false);
         self->statusLabel_->setText(QStringLiteral("Opened: %1").arg(QFileInfo(fileName).fileName()));
+        ccos::web::BrowserStorage::sync();
     });
 }
 
@@ -414,6 +468,8 @@ void MainWindow::importMedia() {
             self->project_.addAsset(std::move(asset));
             self->setDirty(true);
             self->refreshMediaBin();
+            self->mediaBin_->setCurrentRow(self->mediaBin_->count() - 1);
+            ccos::web::BrowserStorage::sync();
             self->statusLabel_->setText(QStringLiteral("Imported: %1").arg(QFileInfo(fileName).fileName()));
         }, this);
 }
@@ -423,8 +479,10 @@ void MainWindow::addSelectedToTimeline() {
     if (row < 0 || row >= static_cast<int>(project_.assets().size())) return;
     ccos::timeline::Clip clip(project_.assets()[static_cast<std::size_t>(row)]);
     auto& track = project_.timeline().ensureVideoTrack();
-    const auto& clips = track.clips();
-    if (!clips.empty()) clip.setStart(clips.back().start() + clips.back().duration());
+    if (!track.clips().empty()) {
+        const auto& previous = track.clips().back();
+        clip.setStart(previous.start() + previous.duration());
+    }
     if (!commandStack_.execute(std::make_unique<ccos::timeline::AddClipCommand>(track, clip))) return;
     setDirty(true);
     refreshTimeline();
@@ -433,7 +491,7 @@ void MainWindow::addSelectedToTimeline() {
 }
 
 void MainWindow::relinkMissingMedia() {
-    const auto missing = project_.missingAssetPaths();
+    const QStringList missing = project_.missingAssetPaths();
     if (missing.isEmpty()) {
         statusLabel_->setText(QStringLiteral("No missing media detected"));
         return;
@@ -454,6 +512,8 @@ void MainWindow::relinkMissingMedia() {
                     self->setDirty(true);
                     self->refreshMediaBin();
                     self->refreshTimeline();
+                    self->loadPreviewSource(path);
+                    ccos::web::BrowserStorage::sync();
                     self->statusLabel_->setText(QStringLiteral("Relinked: %1").arg(QFileInfo(fileName).fileName()));
                 }
                 break;
@@ -463,11 +523,29 @@ void MainWindow::relinkMissingMedia() {
 }
 
 void MainWindow::exportTimeline() {
-    statusLabel_->setText(QStringLiteral("Timeline video export is not available in the browser build yet"));
+    const QList<ccos::render::ExportPreset> presets = ccos::render::ExportPresetCatalog::all();
+    QStringList names;
+    for (const auto& preset : presets) names << QStringLiteral("%1 — %2").arg(preset.name, preset.description);
+    bool ok = false;
+    const QString selected = QInputDialog::getItem(this, QStringLiteral("Export Video"), QStringLiteral("Preset:"), names, 0, false, &ok);
+    if (!ok || selected.isEmpty()) return;
+
+    const int index = names.indexOf(selected);
+    if (index < 0 || index >= presets.size()) return;
+    const auto settings = presets.at(index).settings;
+
+    statusLabel_->setText(QStringLiteral("Preparing WebAssembly render…"));
+    if (!ccos::web::WebFfmpegRenderer::exportTimeline(project_, settings, [this](bool success, const QString& message) {
+            statusLabel_->setText(message);
+            if (!success) QMessageBox::warning(this, QStringLiteral("Export failed"), message);
+        })) {
+        statusLabel_->setText(QStringLiteral("Unable to start browser export"));
+    }
 }
 
 void MainWindow::cancelRender() {
-    if (renderExecutor_ && renderExecutor_->running()) renderExecutor_->cancel();
+    ccos::web::WebFfmpegRenderer::cancel();
+    statusLabel_->setText(QStringLiteral("Export cancellation requested"));
 }
 
 void MainWindow::undo() {
@@ -499,7 +577,7 @@ void MainWindow::togglePlayback() {
 }
 
 void MainWindow::loadPreviewSource(const QString& path) {
-    previewLabel_->setVisible(true);
+    previewLabel_->setVisible(false);
     player_->setSource(QUrl::fromLocalFile(path));
     statusLabel_->setText(QStringLiteral("Preview: %1").arg(QFileInfo(path).fileName()));
 }
@@ -521,10 +599,10 @@ void MainWindow::refreshTimeline() {
             .arg(track.type() == ccos::timeline::TrackType::Video ? QStringLiteral("V") : QStringLiteral("A"), track.name()));
         for (const auto& clip : track.clips()) {
             auto* clipItem = new QTreeWidgetItem(trackItem);
-            clipItem->setText(0, QStringLiteral("Clip %1").arg(QString::fromStdString(clip.id().toString()).left(8)));
+            clipItem->setText(0, QStringLiteral("Clip %1").arg(idString(clip.id()).left(8)));
             clipItem->setText(1, QString::fromStdString(clip.start().toString()));
             clipItem->setText(2, QString::fromStdString(clip.duration().toString()));
-            clipItem->setToolTip(0, QString::fromStdString(clip.id().toString()));
+            clipItem->setToolTip(0, idString(clip.id()));
         }
         trackItem->setExpanded(true);
     }
