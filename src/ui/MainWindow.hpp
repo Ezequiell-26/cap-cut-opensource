@@ -15,7 +15,7 @@ class MainWindow final : public QMainWindow {
 public:
     explicit MainWindow(QWidget* parent = nullptr);
 
-private slots:
+private Q_SLOTS:
     void newProject();
     void openProject();
     void saveProject();
