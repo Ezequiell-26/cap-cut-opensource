@@ -4,10 +4,21 @@
 
 #include <QJsonArray>
 #include <QJsonObject>
+#include <limits>
 
 namespace {
 ccos::project::Project makeProject() {
     return ccos::project::Project(QStringLiteral("API Test Project"));
+}
+
+ccos::timeline::Clip makeClip(double startSeconds, double durationSeconds, double sourceInSeconds = 0.0) {
+    ccos::media::MediaAsset asset(QStringLiteral("demo.mp4"));
+    asset.metadata().durationMs = 60000;
+    ccos::timeline::Clip clip(asset);
+    clip.setStart(ccos::core::Time::fromSeconds(startSeconds));
+    clip.setSourceRange(ccos::core::Time::fromSeconds(sourceInSeconds),
+                        ccos::core::Time::fromSeconds(sourceInSeconds + durationSeconds));
+    return clip;
 }
 }
 
@@ -46,4 +57,58 @@ TEST(EditorApiTest, ValidationReportsEmptyProjectWarningsWithoutErrors) {
     EXPECT_TRUE(result.value(QStringLiteral("ok")).toBool());
     EXPECT_TRUE(result.value(QStringLiteral("errors")).toArray().isEmpty());
     EXPECT_FALSE(result.value(QStringLiteral("warnings")).toArray().isEmpty());
+}
+
+TEST(EditorApiTest, AutomatedSlipMutatesOnlyRequestedClip) {
+    auto project = makeProject();
+    auto& track = project.timeline().ensureVideoTrack();
+    track.addClip(makeClip(0.0, 5.0, 10.0));
+    track.addClip(makeClip(5.0, 4.0, 30.0));
+
+    const QJsonObject request{
+        {QStringLiteral("op"), QStringLiteral("slip")},
+        {QStringLiteral("trackIndex"), 0},
+        {QStringLiteral("clipIndex"), 1},
+        {QStringLiteral("sourceDeltaMs"), 1500}
+    };
+    const QJsonObject result = ccos::api::EditorApi::command(project, request);
+
+    ASSERT_TRUE(result.value(QStringLiteral("ok")).toBool());
+    EXPECT_DOUBLE_EQ(track.clips()[0].sourceIn().seconds(), 10.0);
+    EXPECT_DOUBLE_EQ(track.clips()[1].sourceIn().seconds(), 31.5);
+    EXPECT_DOUBLE_EQ(track.clips()[1].sourceOut().seconds(), 35.5);
+}
+
+TEST(EditorApiTest, AutomatedRippleDeleteReturnsStructuredResult) {
+    auto project = makeProject();
+    auto& track = project.timeline().ensureVideoTrack();
+    track.addClip(makeClip(0.0, 5.0));
+    track.addClip(makeClip(5.0, 3.0, 10.0));
+    track.addClip(makeClip(8.0, 4.0, 20.0));
+
+    const QJsonObject request{
+        {QStringLiteral("op"), QStringLiteral("ripple_delete")},
+        {QStringLiteral("trackIndex"), 0},
+        {QStringLiteral("clipIndex"), 1}
+    };
+    const QJsonObject result = ccos::api::EditorApi::command(project, request);
+
+    EXPECT_TRUE(result.value(QStringLiteral("ok")).toBool());
+    EXPECT_EQ(result.value(QStringLiteral("remainingClips")).toInt(), 2);
+    ASSERT_EQ(track.clips().size(), 2U);
+    EXPECT_DOUBLE_EQ(track.clips()[1].start().seconds(), 5.0);
+}
+
+TEST(EditorApiTest, RejectsIntegerIndexOverflowWithoutUndefinedCast) {
+    auto project = makeProject();
+    const QJsonObject request{
+        {QStringLiteral("op"), QStringLiteral("slip")},
+        {QStringLiteral("trackIndex"), 1.0e30},
+        {QStringLiteral("clipIndex"), 0},
+        {QStringLiteral("sourceDeltaMs"), 0}
+    };
+
+    const QJsonObject result = ccos::api::EditorApi::command(project, request);
+    EXPECT_FALSE(result.value(QStringLiteral("ok")).toBool());
+    EXPECT_NE(result.value(QStringLiteral("error")).toString().indexOf(QStringLiteral("trackIndex")), -1);
 }
