@@ -1,0 +1,74 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            host: linux
+            arch: linux_gcc_64
+            package: TGZ
+          - os: windows-2022
+            host: windows
+            arch: win64_msvc2022_64
+            package: ZIP
+          - os: macos-14
+            host: mac
+            arch: clang_64
+            package: TGZ
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.3'
+          host: ${{ matrix.host }}
+          target: desktop
+          arch: ${{ matrix.arch }}
+          modules: 'qtmultimedia;qtmultimediawidgets'
+          cache: true
+
+      - name: Install build tools
+        if: startsWith(matrix.os, 'ubuntu')
+        run: sudo apt-get update && sudo apt-get install -y cmake ninja-build
+
+      - name: Install build tools (macOS)
+        if: startsWith(matrix.os, 'macos')
+        run: brew install cmake ninja
+
+      - name: Install build tools (Windows)
+        if: startsWith(matrix.os, 'windows')
+        shell: pwsh
+        run: choco install ninja -y --no-progress
+
+      - name: Configure
+        run: cmake -S . -B build -G Ninja -DCCOS_BUILD_TESTS=OFF -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      - name: Package
+        run: cpack --config build/CPackConfig.cmake -G "${{ matrix.package }}"
+
+      - name: Upload package
+        uses: actions/upload-artifact@v4
+        with:
+          name: CCOS-${{ matrix.os }}
+          path: build/*.zip
+          if-no-files-found: ignore
+
+      - name: Upload TGZ package
+        uses: actions/upload-artifact@v4
+        with:
+          name: CCOS-${{ matrix.os }}-tgz
+          path: build/*.tar.gz
+          if-no-files-found: ignore
