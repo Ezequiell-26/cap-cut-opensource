@@ -1,8 +1,9 @@
 #pragma once
 #include <QString>
-#include <QVector>
-#include <functional>
-#include <utility>
+#include <QtGlobal>
+#include <cstdint>
+#include <memory>
+#include <vector>
 
 namespace ccos::render {
 
@@ -31,10 +32,10 @@ public:
         return true;
     }
 
-    [[nodiscard]] qsizetype size() const noexcept { return passes_.size(); }
+    [[nodiscard]] std::size_t size() const noexcept { return passes_.size(); }
 
 private:
-    QVector<std::unique_ptr<RenderPass>> passes_;
+    std::vector<std::unique_ptr<RenderPass>> passes_;
 };
 
 } // namespace ccos::render
