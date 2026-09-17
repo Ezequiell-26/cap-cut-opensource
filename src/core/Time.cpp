@@ -44,7 +44,10 @@ std::strong_ordering operator<=>(Time lhs, Time rhs) noexcept {
 
 Time Time::fromSeconds(double value, std::int32_t denominator) noexcept {
     if (!std::isfinite(value) || denominator <= 0) return {};
-    return Time(static_cast<std::int64_t>(std::llround(value * static_cast<double>(denominator))), denominator);
+    const long double scaled = static_cast<long double>(value) * static_cast<long double>(denominator);
+    constexpr long double kMaxInt64 = 9.22e18L;
+    if (!std::isfinite(scaled) || scaled > kMaxInt64 || scaled < -kMaxInt64) return {};
+    return Time(static_cast<std::int64_t>(std::llround(scaled)), denominator);
 }
 Time Time::fromFrames(std::int64_t frame, std::int32_t fpsNumerator, std::int32_t fpsDenominator) noexcept {
     if (fpsNumerator <= 0 || fpsDenominator <= 0) return {};
