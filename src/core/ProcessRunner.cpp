@@ -4,8 +4,10 @@
 #include <QFileInfo>
 #include <QLoggingCategory>
 #include <QStandardPaths>
+#include <QtConcurrent>
 
 #include <algorithm>
+#include <limits>
 
 Q_LOGGING_CATEGORY(ccos_core_process, "ccos.core.process")
 
@@ -68,8 +70,8 @@ ProcessResult ProcessRunner::runProcess(const ProcessConfig& config, const Contr
     result.executable = config.executable;
     result.arguments = config.arguments;
 
-    const auto timeoutMs = std::max<qint64>(0, config.timeout.count());
-    const auto startupTimeoutMs = std::max<qint64>(0, config.startupTimeout.count());
+    const qint64 timeoutMs = std::max<qint64>(0, config.timeout.count());
+    const qint64 startupTimeoutMs = std::max<qint64>(0, config.startupTimeout.count());
 
     if (!validateExecutable(config.executable)) {
         result.standardError = QStringLiteral("Executable not found or not executable: %1")
@@ -99,7 +101,8 @@ ProcessResult ProcessRunner::runProcess(const ProcessConfig& config, const Contr
     timer.start();
     process.start(QIODevice::ReadOnly);
 
-    if (!process.waitForStarted(static_cast<int>(std::min<qint64>(startupTimeoutMs, std::numeric_limits<int>::max())))) {
+    const int startupWait = static_cast<int>(std::min<qint64>(startupTimeoutMs, std::numeric_limits<int>::max()));
+    if (!process.waitForStarted(startupWait)) {
         result.standardError = process.errorString().toUtf8();
         result.durationMs = timer.elapsed();
         return result;
@@ -170,7 +173,7 @@ QFuture<ProcessResult> ProcessRunner::execute(const ProcessConfig& config) {
 
     emit processStarted(config.executable, config.arguments);
 
-    auto future = QtConcurrent::run([config, control]() {
+    const QFuture<ProcessResult> future = QtConcurrent::run([config, control]() {
         return runProcess(config, control);
     });
 
