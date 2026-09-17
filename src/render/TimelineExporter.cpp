@@ -1,10 +1,20 @@
 #include "render/TimelineExporter.hpp"
 #include "render/TimelineCompositor.hpp"
+#include "render/HardwareCapabilities.hpp"
 #include "core/ProcessRunner.hpp"
 
 #include <QFileInfo>
 
 namespace ccos::render {
+namespace {
+
+QString resolveVideoCodec(const QString& requested, const QString& executable) {
+    const QString trimmed = requested.trimmed();
+    if (trimmed != QStringLiteral("auto")) return trimmed;
+    return HardwareCapabilitiesProbe::detect(executable).preferredH264Encoder(true);
+}
+
+} // namespace
 
 bool TimelineExporter::exportContiguousVideo(const ccos::project::Project& project,
                                              const QString& outputPath,
@@ -13,6 +23,13 @@ bool TimelineExporter::exportContiguousVideo(const ccos::project::Project& proje
                                              QString* error) {
     if (outputPath.isEmpty()) {
         if (error) *error = QStringLiteral("Output path is required");
+        return false;
+    }
+    if (!settings.validate(error)) return false;
+
+    const QString videoCodec = resolveVideoCodec(settings.videoCodec, executable);
+    if (videoCodec.isEmpty()) {
+        if (error) *error = QStringLiteral("Unable to resolve the requested video encoder");
         return false;
     }
 
@@ -31,7 +48,7 @@ bool TimelineExporter::exportContiguousVideo(const ccos::project::Project& proje
     args << QStringLiteral("-filter_complex") << filter
          << QStringLiteral("-map") << videoMap
          << QStringLiteral("-map") << audioMap
-         << QStringLiteral("-c:v") << settings.videoCodec
+         << QStringLiteral("-c:v") << videoCodec
          << QStringLiteral("-b:v") << QStringLiteral("%1k").arg(settings.videoBitrateKbps)
          << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p")
          << QStringLiteral("-r") << QString::number(settings.fps, 'f', 3)
