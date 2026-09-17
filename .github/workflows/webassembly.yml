@@ -15,7 +15,7 @@ env:
   QT_WASM_ARCH: 'wasm_singlethread'
   QT_PREFIX: '${{ github.workspace }}/.qt'
   EM_VERSION: '3.1.56'
-  EMSDK_DIR: '${{ github.workspace }}/.emsdk'
+  EMSDK_ROOT_DIR: '${{ github.workspace }}/.emsdk'
   AQT_VENV: '${{ github.workspace }}/.aqt-venv'
 
 concurrency:
@@ -41,16 +41,18 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [ ! -d "$EMSDK_DIR" ]; then
-            git clone --depth 1 --branch "$EM_VERSION" https://github.com/emscripten-core/emsdk.git "$EMSDK_DIR"
+          emsdk_dir="${EMSDK_ROOT_DIR}"
+          if [ ! -d "$emsdk_dir" ]; then
+            git clone --depth 1 --branch "$EM_VERSION" https://github.com/emscripten-core/emsdk.git "$emsdk_dir"
           fi
-          "$EMSDK_DIR/emsdk" install "$EM_VERSION"
-          "$EMSDK_DIR/emsdk" activate "$EM_VERSION"
-          source "$EMSDK_DIR/emsdk_env.sh"
-          echo "EMSDK=$EMSDK_DIR" >> "$GITHUB_ENV"
-          echo "$EMSDK_DIR" >> "$GITHUB_PATH"
-          echo "$EMSDK_DIR/upstream/emscripten" >> "$GITHUB_PATH"
-          echo "EM_CACHE=$EMSDK_DIR/upstream/emscripten/cache" >> "$GITHUB_ENV"
+          "$emsdk_dir/emsdk" install "$EM_VERSION"
+          "$emsdk_dir/emsdk" activate "$EM_VERSION"
+          source "$emsdk_dir/emsdk_env.sh"
+          echo "CCOS_EMSDK_DIR=$emsdk_dir" >> "$GITHUB_ENV"
+          echo "EMSDK=$emsdk_dir" >> "$GITHUB_ENV"
+          echo "$emsdk_dir" >> "$GITHUB_PATH"
+          echo "$emsdk_dir/upstream/emscripten" >> "$GITHUB_PATH"
+          echo "EM_CACHE=$emsdk_dir/upstream/emscripten/cache" >> "$GITHUB_ENV"
           emcc --version
 
       - name: Install Qt for WebAssembly
@@ -73,7 +75,7 @@ jobs:
           set -euo pipefail
           test -f "$QT_ROOT_DIR/lib/cmake/Qt6/qt.toolchain.cmake"
           test -d "$QT_HOST_PATH"
-          source "$EMSDK/emsdk_env.sh"
+          source "$CCOS_EMSDK_DIR/emsdk_env.sh"
           emcc --version
           echo "Qt WASM: $QT_ROOT_DIR"
           echo "Qt host: $QT_HOST_PATH"
@@ -82,14 +84,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          source "$EMSDK/emsdk_env.sh"
+          source "$CCOS_EMSDK_DIR/emsdk_env.sh"
           cmake --preset web
 
       - name: Build WebAssembly
         shell: bash
         run: |
           set -euo pipefail
-          source "$EMSDK/emsdk_env.sh"
+          source "$CCOS_EMSDK_DIR/emsdk_env.sh"
           cmake --build --preset web --parallel 2
 
       - name: Assemble static web bundle
