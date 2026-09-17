@@ -14,14 +14,16 @@ int main(int argc, char* argv[]) {
     parser.addHelpOption();
     parser.addVersionOption();
     QCommandLineOption project({QStringLiteral("p"), QStringLiteral("project")}, QStringLiteral("CCOS project path"), QStringLiteral("file"));
-    QCommandLineOption operation({QStringLiteral("o"), QStringLiteral("op")}, QStringLiteral("inspect, validate, export, hardware or doctor"), QStringLiteral("operation"), QStringLiteral("inspect"));
+    QCommandLineOption operation({QStringLiteral("o"), QStringLiteral("op")}, QStringLiteral("inspect, validate, export, hardware, geocode or doctor"), QStringLiteral("operation"), QStringLiteral("inspect"));
     QCommandLineOption output(QStringLiteral("out"), QStringLiteral("Export output path"), QStringLiteral("file"));
     QCommandLineOption request(QStringLiteral("request"), QStringLiteral("JSON request object"), QStringLiteral("json"));
+    QCommandLineOption query(QStringLiteral("query"), QStringLiteral("Location search query for geocode"), QStringLiteral("text"));
     QCommandLineOption ffmpeg(QStringLiteral("ffmpeg"), QStringLiteral("FFmpeg executable"), QStringLiteral("path"), QStringLiteral("ffmpeg"));
     parser.addOption(project);
     parser.addOption(operation);
     parser.addOption(output);
     parser.addOption(request);
+    parser.addOption(query);
     parser.addOption(ffmpeg);
     parser.process(app);
 
@@ -39,9 +41,17 @@ int main(int argc, char* argv[]) {
     } else {
         req.insert(QStringLiteral("op"), parser.value(operation));
         if (parser.isSet(output)) req.insert(QStringLiteral("output"), parser.value(output));
+        if (parser.isSet(query)) req.insert(QStringLiteral("query"), parser.value(query));
     }
 
     const QString requestedOperation = req.value(QStringLiteral("op")).toString().trimmed().toLower();
+    if (requestedOperation == QStringLiteral("geocode") || requestedOperation == QStringLiteral("location_search")) {
+        ccos::project::Project emptyProject;
+        const auto result = ccos::api::EditorApi::command(emptyProject, req, parser.value(ffmpeg));
+        out << QJsonDocument(result).toJson(QJsonDocument::Indented) << '\n';
+        return result.value(QStringLiteral("ok")).toBool(false) ? 0 : 1;
+    }
+
     if (requestedOperation == QStringLiteral("doctor") || requestedOperation == QStringLiteral("hardware") ||
         requestedOperation == QStringLiteral("hardware_capabilities")) {
         out << QJsonDocument(ccos::api::EditorApi::hardwareCapabilities(parser.value(ffmpeg)))

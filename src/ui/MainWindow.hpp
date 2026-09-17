@@ -34,8 +34,6 @@ private Q_SLOTS:
     void exportTimeline();
     void cancelRender();
     void relinkMissingMedia();
-#ifdef CCOS_PLATFORM_WEB
-    void installAdvancedTimelineUi();
     void splitSelectedClip();
     void deleteSelectedClip();
     void rippleDeleteSelectedClip();
@@ -44,14 +42,15 @@ private Q_SLOTS:
     void nudgeSelectedClipLeft();
     void nudgeSelectedClipRight();
     void setSelectedClipSpeed();
+    void setSelectedClipAudioMix();
     void addEffectToSelectedClip();
     void setTransitionOnSelectedClip();
-#endif
 
 protected:
     void closeEvent(QCloseEvent* event) override;
 
 private:
+    bool selectedTimelineClip(int* trackIndex, int* clipIndex) const;
     void buildUi();
     void buildMenus();
     void refreshMediaBin();

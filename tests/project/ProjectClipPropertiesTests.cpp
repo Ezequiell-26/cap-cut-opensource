@@ -36,3 +36,16 @@ TEST(ProjectClipPropertiesTests, PersistsTransformSpeedAndEffects) {
     ASSERT_EQ(loadedClip.effects().size(), 1);
     EXPECT_EQ(loadedClip.effects().front(), QStringLiteral("grayscale"));
 }
+
+
+TEST(ProjectClipPropertiesTests, PersistsAudioMixDefaults) {
+    ccos::media::MediaAsset asset(QStringLiteral("/tmp/audio.mp4"));
+    ccos::timeline::Clip clip(asset);
+    EXPECT_DOUBLE_EQ(clip.audioGain(), 1.0);
+    EXPECT_FALSE(clip.audioMuted());
+
+    clip.setAudioGain(99.0);
+    clip.setAudioMuted(true);
+    EXPECT_DOUBLE_EQ(clip.audioGain(), 4.0);
+    EXPECT_TRUE(clip.audioMuted());
+}

@@ -1,3 +1,5 @@
+#include "timeline/EditCommands.hpp"
+#include "core/CommandStack.hpp"
 #include "timeline/TimelineEditor.hpp"
 #include <gtest/gtest.h>
 
@@ -76,4 +78,28 @@ TEST(TimelineEditorTests, RippleDeleteClosesGapOnlyForLaterClips) {
     EXPECT_DOUBLE_EQ(track.clips()[1].start().seconds(), 5.0);
     EXPECT_DOUBLE_EQ(track.clips()[1].duration().seconds(), 4.0);
     EXPECT_DOUBLE_EQ(track.clips()[1].sourceIn().seconds(), 20.0);
+}
+
+
+TEST(TimelineEditorSpeedTests, SpeedChangeUpdatesDurationWithoutChangingSourceRange) {
+    ccos::media::MediaAsset asset(QStringLiteral("speed.mp4"));
+    asset.metadata().durationMs = 12000;
+    ccos::timeline::Clip clip(asset);
+    clip.setSourceRange(ccos::core::Time::fromSeconds(2.0), ccos::core::Time::fromSeconds(8.0));
+
+    ccos::timeline::Track track;
+    track.addClip(clip);
+
+    ccos::core::CommandStack stack;
+    ASSERT_TRUE(stack.execute(std::make_unique<ccos::timeline::SetClipSpeedCommand>(track, 0, 2.0)));
+
+    EXPECT_DOUBLE_EQ(track.clips().front().speed(), 2.0);
+    EXPECT_NEAR(track.clips().front().duration().seconds(), 3.0, 1e-6);
+    EXPECT_NEAR(track.clips().front().sourceIn().seconds(), 2.0, 1e-6);
+    EXPECT_NEAR(track.clips().front().sourceOut().seconds(), 8.0, 1e-6);
+
+    ASSERT_TRUE(stack.undo());
+    EXPECT_DOUBLE_EQ(track.clips().front().speed(), 1.0);
+    EXPECT_NEAR(track.clips().front().duration().seconds(), 6.0, 1e-6);
+    EXPECT_NEAR(track.clips().front().sourceOut().seconds(), 8.0, 1e-6);
 }

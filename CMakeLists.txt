@@ -140,6 +140,7 @@ set(CCOS_SOURCES
     src/render/RenderExecutor.cpp
     src/render/RenderQueueStore.cpp
     src/color/ColorPipeline.cpp
+    src/graphics/GltfAssetInspector.cpp
     src/web/BrowserStorage.cpp
     src/web/WebFfmpegRenderer.cpp
 )
@@ -321,11 +322,13 @@ if(CCOS_BUILD_TESTS AND NOT EMSCRIPTEN)
         tests/unit/api/EditorApiTest.cpp
         tests/unit/api/CreativeMediaApiTest.cpp
         tests/unit/api/NasaMediaApiTest.cpp
+        tests/unit/api/OpenMeteoApiTest.cpp
         tests/unit/ai/LlamaCppProviderTest.cpp
         tests/unit/core/MitFoundationSmokeTest.cpp
         tests/unit/audio/AudioMeterTest.cpp
         tests/unit/color/ColorPipelineTest.cpp
         tests/unit/render/RenderQueueStoreTest.cpp
+        tests/unit/graphics/GltfAssetInspectorTest.cpp
         tests/unit/plugins/PluginPolicyTest.cpp
         tests/unit/ai/AICommandPlanTest.cpp
     )

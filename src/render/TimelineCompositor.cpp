@@ -3,6 +3,7 @@
 #include "render/TextComposer.hpp"
 #include <QFileInfo>
 #include <algorithm>
+#include <cmath>
 #include <QVector>
 
 namespace ccos::render {
@@ -63,9 +64,20 @@ bool TimelineCompositor::build(const ccos::project::Project& project,
             if (asset->metadata().audioChannels > 0 || !asset->metadata().audioCodec.isEmpty()) {
                 QString af = QStringLiteral("[%1:a]atrim=start=%2:end=%3,asetpts=PTS-STARTPTS").arg(inputIndex).arg(timeText(clip.sourceIn())).arg(timeText(clip.sourceOut()));
                 if (speed != 1.0) {
-                    double s = speed; while (s > 2.0) { af += QStringLiteral(",atempo=2.0"); s /= 2.0; } while (s < 0.5) { af += QStringLiteral(",atempo=0.5"); s /= 0.5; } af += QStringLiteral(",atempo=%1").arg(s,0,'f',6);
+                    double s = speed;
+                    while (s > 2.0) { af += QStringLiteral(",atempo=2.0"); s /= 2.0; }
+                    while (s < 0.5) { af += QStringLiteral(",atempo=0.5"); s /= 0.5; }
+                    af += QStringLiteral(",atempo=%1").arg(s,0,'f',6);
                 }
-                af += QStringLiteral(",adelay=%1|%1[a%2]").arg(static_cast<qint64>(clip.start().seconds() * 1000.0)).arg(inputIndex);
+                const double rawAudioGain = clip.audioGain();
+                const double audioGain = std::isfinite(rawAudioGain) ? std::clamp(rawAudioGain, 0.0, 4.0) : 1.0;
+                if (clip.audioMuted()) {
+                    af += QStringLiteral(",volume=0");
+                } else if (std::abs(audioGain - 1.0) > 0.0001) {
+                    af += QStringLiteral(",volume=%1").arg(audioGain, 0, 'f', 6);
+                }
+                af += QStringLiteral(",adelay=%1|%1[a%2]").arg(
+                    static_cast<qint64>(std::max(0.0, clip.start().seconds()) * 1000.0)).arg(inputIndex);
                 filterComplex += af + QLatin1Char(';'); audioLabels << QStringLiteral("[a%1]").arg(inputIndex);
             }
             ++inputIndex;

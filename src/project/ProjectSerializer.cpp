@@ -181,6 +181,8 @@ bool ProjectSerializer::save(const Project& project, const QString& path, QStrin
                 {QStringLiteral("sourceIn"), encodeTime(clip.sourceIn())},
                 {QStringLiteral("sourceOut"), encodeTime(clip.sourceOut())},
                 {QStringLiteral("speed"), clip.speed()},
+                {QStringLiteral("audioGain"), clip.audioGain()},
+                {QStringLiteral("audioMuted"), clip.audioMuted()},
                 {QStringLiteral("transform"), encodeTransform(clip.transform())},
                 {QStringLiteral("effects"), effects},
                 {QStringLiteral("transitionInId"), clip.transitionInId()},
@@ -303,6 +305,8 @@ bool ProjectSerializer::load(Project& project, const QString& path, QString* err
 
                 if (version >= 3) {
                     clip.setSpeed(clipObject.value(QStringLiteral("speed")).toDouble(1.0));
+                    clip.setAudioGain(clipObject.value(QStringLiteral("audioGain")).toDouble(1.0));
+                    clip.setAudioMuted(clipObject.value(QStringLiteral("audioMuted")).toBool(false));
                     decodeTransform(clipObject.value(QStringLiteral("transform")).toObject(), clip.transform());
                     for (const auto& effect : clipObject.value(QStringLiteral("effects")).toArray()) {
                         clip.addEffect(effect.toString());

@@ -3,6 +3,7 @@
 #include "project/ProjectSerializer.hpp"
 #include "render/FfmpegExporter.hpp"
 #include "render/RenderExecutor.hpp"
+#include "effects/BuiltinEffects.hpp"
 #include "timeline/EditCommands.hpp"
 #include <QAction>
 #include <QApplication>
@@ -19,6 +20,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QMenu>
 #include <QMediaPlayer>
 #include <QMessageBox>
 #include <QPushButton>
@@ -241,6 +243,31 @@ void MainWindow::buildUi() {
     timeline_->setHeaderLabels({QStringLiteral("Track / Clip"), QStringLiteral("Start"), QStringLiteral("Duration")});
     timeline_->setAlternatingRowColors(true);
     timeline_->setMinimumHeight(180);
+    timeline_->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(timeline_, &QTreeWidget::customContextMenuRequested, this, [this](const QPoint& position) {
+        auto* item = timeline_->itemAt(position);
+        if (item == nullptr || item->parent() == nullptr) return;
+        timeline_->setCurrentItem(item);
+
+        QMenu menu(this);
+        auto add = [this, &menu](const QString& label, void (MainWindow::*slot)()) {
+            auto* action = menu.addAction(label);
+            connect(action, &QAction::triggered, this, slot);
+        };
+        add(QStringLiteral("Split Clip…"), &MainWindow::splitSelectedClip);
+        add(QStringLiteral("Delete Clip"), &MainWindow::deleteSelectedClip);
+        add(QStringLiteral("Ripple Delete"), &MainWindow::rippleDeleteSelectedClip);
+        menu.addSeparator();
+        add(QStringLiteral("Trim Start…"), &MainWindow::trimSelectedClipStart);
+        add(QStringLiteral("Trim End…"), &MainWindow::trimSelectedClipEnd);
+        add(QStringLiteral("Nudge Left 0.1s"), &MainWindow::nudgeSelectedClipLeft);
+        add(QStringLiteral("Nudge Right 0.1s"), &MainWindow::nudgeSelectedClipRight);
+        add(QStringLiteral("Set Speed…"), &MainWindow::setSelectedClipSpeed);
+        add(QStringLiteral("Audio Gain / Mute…"), &MainWindow::setSelectedClipAudioMix);
+        add(QStringLiteral("Add Effect…"), &MainWindow::addEffectToSelectedClip);
+        add(QStringLiteral("Set Transition…"), &MainWindow::setTransitionOnSelectedClip);
+        menu.exec(timeline_->viewport()->mapToGlobal(position));
+    });
     root->addWidget(timeline_, 1);
 
     setCentralWidget(central);
@@ -357,8 +384,19 @@ void MainWindow::openProject() {
 void MainWindow::importMedia() {
     const auto paths = QFileDialog::getOpenFileNames(this, QStringLiteral("Import Media"), {}, QStringLiteral("Media Files (*.mp4 *.mov *.mkv *.webm *.avi *.wav *.mp3 *.m4a *.png *.jpg *.jpeg);;All Files (*)"));
     if (paths.isEmpty()) return;
-    for (auto asset : ccos::media::MediaImporter::importFiles(paths)) project_.addAsset(std::move(asset));
-    setDirty(true); refreshMediaBin(); statusLabel_->setText(QStringLiteral("Imported %1 media file(s)").arg(paths.size()));
+    QString importError;
+    const auto imported = ccos::media::MediaImporter::importFiles(paths, 4096, &importError);
+    for (auto asset : imported) project_.addAsset(std::move(asset));
+    if (!imported.empty()) {
+        setDirty(true);
+        refreshMediaBin();
+    }
+    if (!importError.isEmpty()) {
+        QMessageBox::warning(this, QStringLiteral("Import Media"),
+                             QStringLiteral("Some files could not be imported:\n%1").arg(importError));
+    }
+    statusLabel_->setText(QStringLiteral("Imported %1 of %2 selected file(s)")
+                          .arg(imported.size()).arg(paths.size()));
 }
 
 void MainWindow::addSelectedToTimeline() {
@@ -369,6 +407,232 @@ void MainWindow::addSelectedToTimeline() {
     if (!clips.empty()) clip.setStart(clips.back().start() + clips.back().duration());
     if (!commandStack_.execute(std::make_unique<ccos::timeline::AddClipCommand>(track, clip))) return;
     setDirty(true); refreshTimeline(); loadPreviewSource(project_.assets()[static_cast<std::size_t>(row)].path()); statusLabel_->setText(QStringLiteral("Added clip to Video 1"));
+}
+
+bool MainWindow::selectedTimelineClip(int* trackIndex, int* clipIndex) const {
+    if (!trackIndex || !clipIndex || timeline_ == nullptr) return false;
+    const auto* item = timeline_->currentItem();
+    if (item == nullptr || item->parent() == nullptr) return false;
+    const int track = item->data(0, Qt::UserRole).toInt();
+    const int clip = item->data(1, Qt::UserRole).toInt();
+    if (track < 0 || clip < 0 ||
+        track >= static_cast<int>(project_.timeline().tracks().size()) ||
+        clip >= static_cast<int>(project_.timeline().tracks()[static_cast<std::size_t>(track)].clips().size())) {
+        return false;
+    }
+    *trackIndex = track;
+    *clipIndex = clip;
+    return true;
+}
+
+void MainWindow::splitSelectedClip() {
+    int trackIndex = -1;
+    int clipIndex = -1;
+    if (!selectedTimelineClip(&trackIndex, &clipIndex)) return;
+    auto& track = project_.timeline().tracks()[static_cast<std::size_t>(trackIndex)];
+    const auto& clip = track.clips()[static_cast<std::size_t>(clipIndex)];
+    const double start = clip.start().seconds();
+    const double end = (clip.start() + clip.duration()).seconds();
+    if (end - start <= 0.002) return;
+    bool accepted = false;
+    const double defaultPosition = start + (end - start) * 0.5;
+    const double position = QInputDialog::getDouble(this, QStringLiteral("Split Clip"),
+        QStringLiteral("Timeline position (seconds):"), defaultPosition, start + 0.001, end - 0.001, 3, &accepted);
+    if (!accepted) return;
+    if (!commandStack_.execute(std::make_unique<ccos::timeline::SplitClipCommand>(
+            track, static_cast<std::size_t>(clipIndex), ccos::core::Time::fromSeconds(position)))) return;
+    setDirty(true);
+    refreshTimeline();
+    statusLabel_->setText(QStringLiteral("Clip split at %1 s").arg(position, 0, 'f', 3));
+}
+
+void MainWindow::deleteSelectedClip() {
+    int trackIndex = -1;
+    int clipIndex = -1;
+    if (!selectedTimelineClip(&trackIndex, &clipIndex)) return;
+    if (QMessageBox::question(this, QStringLiteral("Delete Clip"),
+                              QStringLiteral("Delete the selected clip?")) != QMessageBox::Yes) return;
+    auto& track = project_.timeline().tracks()[static_cast<std::size_t>(trackIndex)];
+    if (!commandStack_.execute(std::make_unique<ccos::timeline::DeleteClipCommand>(
+            track, static_cast<std::size_t>(clipIndex)))) return;
+    setDirty(true);
+    refreshTimeline();
+    statusLabel_->setText(QStringLiteral("Clip deleted"));
+}
+
+void MainWindow::rippleDeleteSelectedClip() {
+    int trackIndex = -1;
+    int clipIndex = -1;
+    if (!selectedTimelineClip(&trackIndex, &clipIndex)) return;
+    auto& track = project_.timeline().tracks()[static_cast<std::size_t>(trackIndex)];
+    if (!commandStack_.execute(std::make_unique<ccos::timeline::RippleDeleteClipCommand>(
+            track, static_cast<std::size_t>(clipIndex)))) return;
+    setDirty(true);
+    refreshTimeline();
+    statusLabel_->setText(QStringLiteral("Ripple delete applied"));
+}
+
+void MainWindow::trimSelectedClipStart() {
+    int trackIndex = -1;
+    int clipIndex = -1;
+    if (!selectedTimelineClip(&trackIndex, &clipIndex)) return;
+    auto& track = project_.timeline().tracks()[static_cast<std::size_t>(trackIndex)];
+    const auto& clip = track.clips()[static_cast<std::size_t>(clipIndex)];
+    const double sourceIn = clip.sourceIn().seconds();
+    const double sourceOut = clip.sourceOut().seconds();
+    if (sourceOut - sourceIn <= 0.002) return;
+    bool accepted = false;
+    const double value = QInputDialog::getDouble(this, QStringLiteral("Trim Start"),
+        QStringLiteral("New source-in (seconds):"), sourceIn, sourceIn, sourceOut - 0.001, 3, &accepted);
+    if (!accepted) return;
+    if (!commandStack_.execute(std::make_unique<ccos::timeline::TrimClipCommand>(
+            track, static_cast<std::size_t>(clipIndex), ccos::core::Time::fromSeconds(value), clip.sourceOut()))) return;
+    setDirty(true);
+    refreshTimeline();
+    statusLabel_->setText(QStringLiteral("Clip start trimmed"));
+}
+
+void MainWindow::trimSelectedClipEnd() {
+    int trackIndex = -1;
+    int clipIndex = -1;
+    if (!selectedTimelineClip(&trackIndex, &clipIndex)) return;
+    auto& track = project_.timeline().tracks()[static_cast<std::size_t>(trackIndex)];
+    const auto& clip = track.clips()[static_cast<std::size_t>(clipIndex)];
+    const double sourceIn = clip.sourceIn().seconds();
+    const double sourceOut = clip.sourceOut().seconds();
+    if (sourceOut - sourceIn <= 0.002) return;
+    bool accepted = false;
+    const double value = QInputDialog::getDouble(this, QStringLiteral("Trim End"),
+        QStringLiteral("New source-out (seconds):"), sourceOut, sourceIn + 0.001, sourceOut, 3, &accepted);
+    if (!accepted) return;
+    if (!commandStack_.execute(std::make_unique<ccos::timeline::TrimClipCommand>(
+            track, static_cast<std::size_t>(clipIndex), clip.sourceIn(), ccos::core::Time::fromSeconds(value)))) return;
+    setDirty(true);
+    refreshTimeline();
+    statusLabel_->setText(QStringLiteral("Clip end trimmed"));
+}
+
+void MainWindow::nudgeSelectedClipLeft() {
+    int trackIndex = -1;
+    int clipIndex = -1;
+    if (!selectedTimelineClip(&trackIndex, &clipIndex)) return;
+    auto& track = project_.timeline().tracks()[static_cast<std::size_t>(trackIndex)];
+    const auto& clip = track.clips()[static_cast<std::size_t>(clipIndex)];
+    const auto newStart = ccos::core::Time::fromSeconds(qMax(0.0, clip.start().seconds() - 0.1));
+    if (!commandStack_.execute(std::make_unique<ccos::timeline::MoveClipCommand>(
+            track, static_cast<std::size_t>(clipIndex), newStart))) return;
+    setDirty(true);
+    refreshTimeline();
+}
+
+void MainWindow::nudgeSelectedClipRight() {
+    int trackIndex = -1;
+    int clipIndex = -1;
+    if (!selectedTimelineClip(&trackIndex, &clipIndex)) return;
+    auto& track = project_.timeline().tracks()[static_cast<std::size_t>(trackIndex)];
+    const auto& clip = track.clips()[static_cast<std::size_t>(clipIndex)];
+    const auto newStart = clip.start() + ccos::core::Time::fromSeconds(0.1);
+    if (!commandStack_.execute(std::make_unique<ccos::timeline::MoveClipCommand>(
+            track, static_cast<std::size_t>(clipIndex), newStart))) return;
+    setDirty(true);
+    refreshTimeline();
+}
+
+void MainWindow::setSelectedClipSpeed() {
+    int trackIndex = -1;
+    int clipIndex = -1;
+    if (!selectedTimelineClip(&trackIndex, &clipIndex)) return;
+    auto& track = project_.timeline().tracks()[static_cast<std::size_t>(trackIndex)];
+    const auto& clip = track.clips()[static_cast<std::size_t>(clipIndex)];
+    bool accepted = false;
+    const double speed = QInputDialog::getDouble(this, QStringLiteral("Clip Speed"),
+        QStringLiteral("Playback speed:"), clip.speed(), 0.1, 8.0, 2, &accepted);
+    if (!accepted) return;
+    if (!commandStack_.execute(std::make_unique<ccos::timeline::SetClipSpeedCommand>(
+            track, static_cast<std::size_t>(clipIndex), speed))) return;
+    setDirty(true);
+    refreshTimeline();
+    statusLabel_->setText(QStringLiteral("Speed set to %1x").arg(speed, 0, 'f', 2));
+}
+
+void MainWindow::setSelectedClipAudioMix() {
+    int trackIndex = -1;
+    int clipIndex = -1;
+    if (!selectedTimelineClip(&trackIndex, &clipIndex)) return;
+    auto& track = project_.timeline().tracks()[static_cast<std::size_t>(trackIndex)];
+    const auto& clip = track.clips()[static_cast<std::size_t>(clipIndex)];
+
+    bool gainAccepted = false;
+    const double gain = QInputDialog::getDouble(
+        this, QStringLiteral("Audio Gain"),
+        QStringLiteral("Linear gain (0 = silent, 1 = unity, 4 = +12 dB):"),
+        clip.audioGain(), 0.0, 4.0, 3, &gainAccepted);
+    if (!gainAccepted) return;
+
+    bool muteAccepted = false;
+    const QString muteChoice = QInputDialog::getItem(
+        this, QStringLiteral("Clip Audio"),
+        QStringLiteral("State:"), QStringList{QStringLiteral("Unmuted"), QStringLiteral("Muted")},
+        clip.audioMuted() ? 1 : 0, false, &muteAccepted);
+    if (!muteAccepted) return;
+
+    const bool muted = muteChoice == QStringLiteral("Muted");
+    if (!commandStack_.execute(std::make_unique<ccos::timeline::SetClipAudioMixCommand>(
+            track, static_cast<std::size_t>(clipIndex), gain, muted))) return;
+    setDirty(true);
+    refreshTimeline();
+    statusLabel_->setText(QStringLiteral("Audio: %1x%2")
+        .arg(gain, 0, 'f', 2)
+        .arg(muted ? QStringLiteral(" muted") : QString()));
+}
+
+void MainWindow::addEffectToSelectedClip() {
+    int trackIndex = -1;
+    int clipIndex = -1;
+    if (!selectedTimelineClip(&trackIndex, &clipIndex)) return;
+    auto& track = project_.timeline().tracks()[static_cast<std::size_t>(trackIndex)];
+    const QStringList ids = ccos::effects::BuiltinEffects::ids();
+    if (ids.isEmpty()) return;
+
+    bool accepted = false;
+    const QString id = QInputDialog::getItem(this, QStringLiteral("Add Effect"),
+        QStringLiteral("Effect:"), ids, 0, false, &accepted);
+    if (!accepted || id.isEmpty()) return;
+    if (!commandStack_.execute(std::make_unique<ccos::timeline::AddEffectCommand>(
+            track, static_cast<std::size_t>(clipIndex), id))) {
+        QMessageBox::information(this, QStringLiteral("Add Effect"), QStringLiteral("The effect is already present or invalid."));
+        return;
+    }
+    setDirty(true);
+    refreshTimeline();
+    statusLabel_->setText(QStringLiteral("Effect added: %1").arg(id));
+}
+
+void MainWindow::setTransitionOnSelectedClip() {
+    int trackIndex = -1;
+    int clipIndex = -1;
+    if (!selectedTimelineClip(&trackIndex, &clipIndex)) return;
+    auto& track = project_.timeline().tracks()[static_cast<std::size_t>(trackIndex)];
+    const QStringList transitions{
+        QStringLiteral("cut"), QStringLiteral("fade"), QStringLiteral("dissolve"),
+        QStringLiteral("dip_to_black"), QStringLiteral("wipe"), QStringLiteral("slide"),
+        QStringLiteral("zoom")};
+
+    bool accepted = false;
+    const QString id = QInputDialog::getItem(this, QStringLiteral("Set Transition"),
+        QStringLiteral("Transition:"), transitions, 2, false, &accepted);
+    if (!accepted || id.isEmpty()) return;
+
+    bool durationAccepted = false;
+    const int duration = QInputDialog::getInt(this, QStringLiteral("Transition Duration"),
+        QStringLiteral("Duration (ms):"), 500, 0, 60000, 10, &durationAccepted);
+    if (!durationAccepted) return;
+
+    if (!commandStack_.execute(std::make_unique<ccos::timeline::SetTransitionCommand>(
+            track, static_cast<std::size_t>(clipIndex), id, duration))) return;
+    setDirty(true);
+    refreshTimeline();
+    statusLabel_->setText(QStringLiteral("Transition set: %1").arg(id));
 }
 
 void MainWindow::relinkMissingMedia() {
@@ -463,12 +727,17 @@ void MainWindow::refreshMediaBin() {
 
 void MainWindow::refreshTimeline() {
     timeline_->clear();
-    for (const auto& track : project_.timeline().tracks()) {
+    for (std::size_t trackIndex = 0; trackIndex < project_.timeline().tracks().size(); ++trackIndex) {
+        const auto& track = project_.timeline().tracks()[trackIndex];
         auto* trackItem = new QTreeWidgetItem(timeline_);
+        trackItem->setData(0, Qt::UserRole, static_cast<int>(trackIndex));
         trackItem->setText(0, QStringLiteral("%1  •  %2")
             .arg(track.type() == ccos::timeline::TrackType::Video ? QStringLiteral("V") : QStringLiteral("A"), track.name()));
-        for (const auto& clip : track.clips()) {
+        for (std::size_t clipIndex = 0; clipIndex < track.clips().size(); ++clipIndex) {
+            const auto& clip = track.clips()[clipIndex];
             auto* clipItem = new QTreeWidgetItem(trackItem);
+            clipItem->setData(0, Qt::UserRole, static_cast<int>(trackIndex));
+            clipItem->setData(1, Qt::UserRole, static_cast<int>(clipIndex));
             clipItem->setText(0, QStringLiteral("Clip %1").arg(QString::fromStdString(clip.id().toString()).left(8)));
             clipItem->setText(1, QString::fromStdString(clip.start().toString()));
             clipItem->setText(2, QString::fromStdString(clip.duration().toString()));

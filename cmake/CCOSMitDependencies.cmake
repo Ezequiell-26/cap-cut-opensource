@@ -46,10 +46,15 @@ endif()
 if(CCOS_ENABLE_MIT_MEDIA_3D)
     FetchContent_Declare(entt GIT_REPOSITORY https://github.com/skypjack/entt.git GIT_TAG v4.0.0 GIT_SHALLOW TRUE)
     FetchContent_Declare(meshoptimizer GIT_REPOSITORY https://github.com/zeux/meshoptimizer.git GIT_TAG v1.2 GIT_SHALLOW TRUE)
-    FetchContent_MakeAvailable(entt meshoptimizer)
+    FetchContent_Declare(tinygltf GIT_REPOSITORY https://github.com/syoyo/tinygltf.git GIT_TAG v2.9.3 GIT_SHALLOW TRUE)
+    FetchContent_MakeAvailable(entt meshoptimizer tinygltf)
     if(NOT TARGET ccos_mit_media_3d)
         add_library(ccos_mit_media_3d INTERFACE)
-        target_include_directories(ccos_mit_media_3d INTERFACE ${entt_SOURCE_DIR}/src ${meshoptimizer_SOURCE_DIR}/src)
+        target_include_directories(ccos_mit_media_3d INTERFACE
+            ${entt_SOURCE_DIR}/src
+            ${meshoptimizer_SOURCE_DIR}/src
+            ${tinygltf_SOURCE_DIR}
+        )
     endif()
 endif()
 

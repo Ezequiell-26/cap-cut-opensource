@@ -62,3 +62,32 @@ jobs:
 
       - name: Test
         run: ctest --test-dir build -C Release --output-on-failure
+
+  optional-mit-profile:
+    name: Optional MIT extensions (Ubuntu)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.3'
+          host: linux
+          target: desktop
+          arch: linux_gcc_64
+          modules: 'qtmultimedia'
+          cache: true
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build
+
+      - name: Configure optional MIT profile
+        run: cmake -S . -B build-mit -G Ninja -DCCOS_BUILD_TESTS=OFF -DCCOS_ENABLE_MIT_UI_EXTENSIONS=ON -DCCOS_ENABLE_MIT_MEDIA_3D=ON -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build optional MIT profile
+        run: cmake --build build-mit --config Release --parallel
