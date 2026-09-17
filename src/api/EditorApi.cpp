@@ -1,5 +1,7 @@
 #include "api/EditorApi.hpp"
 #include "api/CulturalMediaApi.hpp"
+#include "api/OpenMeteoApi.hpp"
+#include "graphics/GltfAssetInspector.hpp"
 #include "render/ExportPresets.hpp"
 #include "render/HardwareCapabilities.hpp"
 #include "render/TimelineExporter.hpp"
@@ -76,6 +78,54 @@ QJsonObject EditorApi::validate(const ccos::project::Project& project) {
         if (asset.path().isEmpty()) errors.append(QStringLiteral("Asset %1 has no path").arg(asset.name()));
         else if (!QFileInfo::exists(asset.path())) warnings.append(QStringLiteral("Missing media: %1").arg(asset.path()));
     }
+
+    for (std::size_t trackIndex = 0; trackIndex < project.timeline().tracks().size(); ++trackIndex) {
+        const auto& track = project.timeline().tracks()[trackIndex];
+        for (std::size_t clipIndex = 0; clipIndex < track.clips().size(); ++clipIndex) {
+            const auto& clip = track.clips()[clipIndex];
+            const QString prefix = QStringLiteral("Track %1 clip %2").arg(static_cast<qulonglong>(trackIndex))
+                                                                  .arg(static_cast<qulonglong>(clipIndex));
+            const bool assetKnown = std::any_of(project.assets().begin(), project.assets().end(),
+                                                [&clip](const auto& asset) { return asset.id() == clip.assetId(); });
+            if (!assetKnown) {
+                errors.append(prefix + QStringLiteral(" references an unknown asset"));
+            }
+            if (clip.start() < ccos::core::Time{}) {
+                errors.append(prefix + QStringLiteral(" has a negative timeline start"));
+            }
+            if (clip.duration() <= ccos::core::Time{}) {
+                errors.append(prefix + QStringLiteral(" has a non-positive duration"));
+            }
+            if (clip.sourceIn() < ccos::core::Time{} || clip.sourceOut() <= clip.sourceIn()) {
+                errors.append(prefix + QStringLiteral(" has an invalid source range"));
+            }
+            const double speed = clip.speed();
+            if (!std::isfinite(speed) || speed <= 0.0) {
+                errors.append(prefix + QStringLiteral(" has an invalid speed"));
+            }
+            const auto& transform = clip.transform();
+            if (!std::isfinite(transform.x) || !std::isfinite(transform.y) ||
+                !std::isfinite(transform.scaleX) || !std::isfinite(transform.scaleY) ||
+                !std::isfinite(transform.rotation) || !std::isfinite(transform.opacity) ||
+                !std::isfinite(transform.cropLeft) || !std::isfinite(transform.cropTop) ||
+                !std::isfinite(transform.cropRight) || !std::isfinite(transform.cropBottom)) {
+                errors.append(prefix + QStringLiteral(" has non-finite transform values"));
+            }
+            if (transform.scaleX <= 0.0 || transform.scaleY <= 0.0) {
+                errors.append(prefix + QStringLiteral(" has non-positive scale"));
+            }
+            if (transform.opacity < 0.0 || transform.opacity > 1.0) {
+                errors.append(prefix + QStringLiteral(" has opacity outside [0, 1]"));
+            }
+            if (transform.cropLeft < 0.0 || transform.cropTop < 0.0 ||
+                transform.cropRight < 0.0 || transform.cropBottom < 0.0 ||
+                transform.cropLeft + transform.cropRight >= 1.0 ||
+                transform.cropTop + transform.cropBottom >= 1.0) {
+                errors.append(prefix + QStringLiteral(" has invalid crop bounds"));
+            }
+        }
+    }
+
     out.insert(QStringLiteral("ok"), errors.isEmpty());
     out.insert(QStringLiteral("errors"), errors);
     out.insert(QStringLiteral("warnings"), warnings);
@@ -167,6 +217,56 @@ QJsonObject EditorApi::command(ccos::project::Project& project, const QJsonObjec
     }
     if (operation == QStringLiteral("cultural_media_providers") || operation == QStringLiteral("open_media_providers")) {
         return culturalMediaProviders();
+    }
+
+    if (operation == QStringLiteral("geocode") || operation == QStringLiteral("location_search")) {
+        const QString query = request.value(QStringLiteral("query")).toString().trimmed();
+        if (query.isEmpty()) {
+            return QJsonObject{{QStringLiteral("ok"), false},
+                               {QStringLiteral("error"), QStringLiteral("query is required")}};
+        }
+        int count = request.value(QStringLiteral("count")).toInt(10);
+        count = std::clamp(count, 1, 100);
+        const auto locations = ccos::api::OpenMeteoApi::searchLocations(query, count);
+        QJsonArray results;
+        for (const auto& location : locations) {
+            results.append(QJsonObject{
+                {QStringLiteral("name"), location.name},
+                {QStringLiteral("country"), location.country},
+                {QStringLiteral("countryCode"), location.countryCode},
+                {QStringLiteral("admin1"), location.admin1},
+                {QStringLiteral("timezone"), location.timezone},
+                {QStringLiteral("latitude"), location.latitude},
+                {QStringLiteral("longitude"), location.longitude}
+            });
+        }
+        return QJsonObject{{QStringLiteral("ok"), true},
+                           {QStringLiteral("query"), query},
+                           {QStringLiteral("results"), results}};
+    }
+
+    if (operation == QStringLiteral("gltf_inspect") || operation == QStringLiteral("inspect_gltf")) {
+        const QString path = request.value(QStringLiteral("path")).toString().trimmed();
+        if (path.isEmpty()) {
+            return QJsonObject{{QStringLiteral("ok"), false},
+                               {QStringLiteral("error"), QStringLiteral("path is required")}};
+        }
+        const auto info = ccos::graphics::GltfAssetInspector::inspect(path);
+        QJsonObject result{
+            {QStringLiteral("ok"), info.valid},
+            {QStringLiteral("supported"), ccos::graphics::GltfAssetInspector::supported()},
+            {QStringLiteral("path"), info.path},
+            {QStringLiteral("format"), info.format},
+            {QStringLiteral("sceneCount"), info.sceneCount},
+            {QStringLiteral("nodeCount"), info.nodeCount},
+            {QStringLiteral("meshCount"), info.meshCount},
+            {QStringLiteral("materialCount"), info.materialCount},
+            {QStringLiteral("imageCount"), info.imageCount},
+            {QStringLiteral("animationCount"), info.animationCount},
+            {QStringLiteral("skinCount"), info.skinCount}
+        };
+        if (!info.error.isEmpty()) result.insert(QStringLiteral("error"), info.error);
+        return result;
     }
 
     if (operation == QStringLiteral("timeline_slip") || operation == QStringLiteral("slip")) {
