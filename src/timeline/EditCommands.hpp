@@ -230,4 +230,39 @@ private:
     bool executed_ = false;
 };
 
+class SetClipAudioMixCommand final : public ccos::core::Command {
+public:
+    SetClipAudioMixCommand(Track& track, std::size_t clipIndex, double gain, bool muted)
+        : track_(track), clipIndex_(clipIndex), newGain_(gain), newMuted_(muted) {}
+
+    bool execute() override {
+        if (executed_ || clipIndex_ >= track_.clips().size() ||
+            !std::isfinite(newGain_) || newGain_ < 0.0 || newGain_ > 4.0) return false;
+        auto& clip = track_.clips()[clipIndex_];
+        if (!original_.has_value()) original_ = qMakePair(clip.audioGain(), clip.audioMuted());
+        clip.setAudioGain(newGain_);
+        clip.setAudioMuted(newMuted_);
+        executed_ = true;
+        return true;
+    }
+
+    void undo() override {
+        if (!executed_ || !original_.has_value() || clipIndex_ >= track_.clips().size()) return;
+        auto& clip = track_.clips()[clipIndex_];
+        clip.setAudioGain(original_->first);
+        clip.setAudioMuted(original_->second);
+        executed_ = false;
+    }
+
+    QString name() const override { return QStringLiteral("Set Clip Audio Mix"); }
+
+private:
+    Track& track_;
+    std::size_t clipIndex_ = 0;
+    double newGain_ = 1.0;
+    bool newMuted_ = false;
+    std::optional<QPair<double, bool>> original_;
+    bool executed_ = false;
+};
+
 } // namespace ccos::timeline
