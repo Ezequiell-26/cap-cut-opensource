@@ -76,7 +76,8 @@ struct Guard {
                         content.find(">>>>>>> ") != std::string::npos) {
                         fail("merge conflict marker in " + generic);
                     }
-                    if (content.find("waitForFinished(-1)") != std::string::npos) {
+                    const std::string unboundedWait = "waitForFinished(" + std::string("-1)");
+                    if (content.find(unboundedWait) != std::string::npos) {
                         fail("unbounded QProcess wait in " + generic);
                     }
                 }
