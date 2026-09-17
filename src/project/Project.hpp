@@ -1,29 +1,44 @@
 #pragma once
+
 #include "core/Uuid.hpp"
 #include "media/MediaAsset.hpp"
 #include "text/TextLayer.hpp"
 #include "timeline/Timeline.hpp"
+
 #include <QString>
+#include <QStringList>
 #include <vector>
 
 namespace ccos::project {
+
 class Project {
 public:
     Project();
     explicit Project(QString name);
+    Project(ccos::core::Uuid id, QString name);
+
     [[nodiscard]] const ccos::core::Uuid& id() const noexcept { return id_; }
     [[nodiscard]] const QString& name() const noexcept { return name_; }
-    void setName(QString name) { name_ = std::move(name); }
+    void setName(QString name) {
+        name_ = std::move(name);
+        if (name_.isEmpty()) name_ = QStringLiteral("Untitled Project");
+    }
+
     [[nodiscard]] const std::vector<ccos::media::MediaAsset>& assets() const noexcept { return assets_; }
     std::vector<ccos::media::MediaAsset>& assets() noexcept { return assets_; }
+
     [[nodiscard]] ccos::timeline::Timeline& timeline() noexcept { return timeline_; }
     [[nodiscard]] const ccos::timeline::Timeline& timeline() const noexcept { return timeline_; }
+
     [[nodiscard]] const std::vector<ccos::text::TextLayer>& textLayers() const noexcept { return textLayers_; }
     std::vector<ccos::text::TextLayer>& textLayers() noexcept { return textLayers_; }
+
     void addAsset(ccos::media::MediaAsset asset) { assets_.push_back(std::move(asset)); }
     void addTextLayer(ccos::text::TextLayer layer) { textLayers_.push_back(std::move(layer)); }
+
     int relinkAsset(const ccos::core::Uuid& id, const QString& newPath);
     [[nodiscard]] QStringList missingAssetPaths() const;
+
 private:
     ccos::core::Uuid id_;
     QString name_;
@@ -31,4 +46,5 @@ private:
     ccos::timeline::Timeline timeline_;
     std::vector<ccos::text::TextLayer> textLayers_;
 };
-}
+
+} // namespace ccos::project
