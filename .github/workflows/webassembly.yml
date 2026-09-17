@@ -60,7 +60,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 -m venv "$AQT_VENV"
-          "$AQT_VENV/bin/python" -m pip install --disable-pip-version-check --no-cache-dir 'aqtinstall==3.3.1'
+          "$AQT_VENV/bin/python" -m pip install --disable-pip-version-check --no-cache-dir 'aqtinstall==3.3.0'
           "$AQT_VENV/bin/python" -m aqt install-qt all_os wasm "$QT_VERSION" "$QT_WASM_ARCH" \
             --autodesktop \
             --modules qtmultimedia \
