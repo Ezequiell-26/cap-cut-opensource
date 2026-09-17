@@ -1,4 +1,5 @@
 #pragma once
+#include "core/CommandStack.hpp"
 #include "project/Project.hpp"
 #include <QMainWindow>
 
@@ -23,6 +24,8 @@ private Q_SLOTS:
     void addSelectedToTimeline();
     void updateSelection();
     void togglePlayback();
+    void undo();
+    void redo();
 
 private:
     void buildUi();
@@ -33,6 +36,7 @@ private:
     void loadPreviewSource(const QString& path);
 
     ccos::project::Project project_;
+    ccos::core::CommandStack commandStack_;
     QString projectPath_;
     QListWidget* mediaBin_ = nullptr;
     QTreeWidget* timeline_ = nullptr;
