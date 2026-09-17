@@ -42,7 +42,7 @@ jobs:
           host: ${{ matrix.host }}
           target: desktop
           arch: ${{ matrix.arch }}
-          modules: 'qtmultimedia;qtmultimediawidgets;qtsvg'
+          modules: 'qtmultimedia'
           cache: true
           tools: 'tools_ifw_5.15.2'
 
@@ -68,8 +68,7 @@ jobs:
       - name: Bundle Qt runtime (Windows)
         if: startsWith(matrix.os, 'windows')
         shell: pwsh
-        run: |
-          windeployqt --release --compiler-runtime --multimedia --svg build\ccos_editor.exe
+        run: windeployqt --release --compiler-runtime --multimedia build\ccos_editor.exe
 
       - name: Bundle Qt runtime (macOS)
         if: startsWith(matrix.os, 'macos')
