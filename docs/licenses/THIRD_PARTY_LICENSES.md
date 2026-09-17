@@ -31,13 +31,19 @@ CCOS source code is MIT. Dependencies remain under their own licenses. This inve
 | ONNX Runtime | Local ML inference runtime | MIT at the repository level; execution providers may introduce additional licenses | `CCOS_ENABLE_ONNXRUNTIME` |
 | Dear ImGui | Technical/debug/content-creation UI | MIT | `CCOS_ENABLE_MIT_UI_EXTENSIONS` |
 | ImGuizmo | Visual transform/gizmo/sequencer widgets | MIT | `CCOS_ENABLE_MIT_UI_EXTENSIONS` |
-| cpptrace | Stack traces/crash diagnostics | MIT; libdwarf backend can add LGPL obligations when statically linked | `CCOS_ENABLE_MIT_DIAGNOSTICS` |
+| cpptrace | Stack traces/crash diagnostics | MIT; backend dependencies can add obligations | `CCOS_ENABLE_MIT_DIAGNOSTICS` |
 | martinus/unordered_dense | High-performance hash containers | MIT | `CCOS_ENABLE_MIT_STORAGE` |
+| Tessil/robin-map | Robin Hood hash map/set | MIT | `CCOS_ENABLE_MIT_UTILITY_EXTENSIONS` |
+| bombela/backward-cpp | Stack trace pretty-printer | MIT; optional unwind/debug libraries have their own licenses | `CCOS_ENABLE_MIT_UTILITY_EXTENSIONS` |
 | HowardHinnant/date | Date/time utilities | MIT | `CCOS_ENABLE_MIT_STORAGE` |
 | foonathan/memory | Allocator/memory utilities | MIT | `CCOS_ENABLE_MIT_STORAGE` |
-| libdeflate | Fast DEFLATE/zlib/gzip compression | MIT | optional extension / audit before wiring |
-| utf8.h | Small UTF-8 helper | MIT | optional extension / audit before wiring |
+| libdeflate | Fast DEFLATE/zlib/gzip compression | MIT | `CCOS_ENABLE_MIT_COMPRESSION` |
+| sheredom/utf8.h | Single-header UTF-8 utilities | Public Domain / Unlicense | `CCOS_ENABLE_UTF8_HEADER` |
 | HarfBuzz | Complex-script text shaping | MIT | `CCOS_ENABLE_PRO_TEXT` |
+
+`robin-map` is currently at v1.4.1 upstream and is MIT. `backward-cpp` is MIT and can be used as a CMake dependency, but richer stack-resolution modes rely on platform debugging/unwind libraries. The CCOS default build therefore keeps both optional. citeturn514282search0turn514282search2turn107820search0
+
+`sheredom/utf8.h` is public-domain/Unlicense rather than MIT. The CCOS CMake configuration pins the current audited upstream commit when the optional integration is enabled. citeturn346file0turn581819search0
 
 ## Optional professional integrations
 
@@ -56,17 +62,19 @@ CCOS source code is MIT. Dependencies remain under their own licenses. This inve
 | RtMidi | MIDI input/output | audited local version required | permissive RtMidi license; review notice | `CCOS_ENABLE_PRO_AUDIO_IO` |
 | libsamplerate | High-quality audio resampling | audited local version required | BSD-2-Clause | `CCOS_ENABLE_PRO_AUDIO_IO` |
 | SpeexDSP | Audio DSP/noise/signal processing | audited local version required | BSD-3-Clause | `CCOS_ENABLE_PRO_AUDIO_IO` |
+| RNNoise | Neural noise suppression | v0.2 | BSD-3-Clause | `CCOS_ENABLE_PRO_AUDIO_IO` |
+| KissFFT | FFT/spectrum analysis | v131.1.0 | Revised BSD | `CCOS_ENABLE_PRO_AUDIO_IO` |
 | dav1d | Fast AV1 decoder | audited local version required | BSD-2-Clause | `CCOS_ENABLE_PRO_CODECS` |
 | SVT-AV1 | AV1 encoder | audited local version required | BSD-3-Clause Clear + AOM patent license | `CCOS_ENABLE_PRO_CODECS` |
 | Zstandard | Project/cache compression | v1.5.7 | BSD | `CCOS_ENABLE_PRO_STORAGE` |
 | LZ4 | Fast compression/decompression | audited local version required | BSD-2-Clause | `CCOS_ENABLE_PRO_STORAGE` |
 | xxHash | Non-cryptographic hashing | audited local version required | BSD-2-Clause | `CCOS_ENABLE_PRO_STORAGE` |
-| libarchive | Archive/container access | audited local version required | BSD-like / multi-license tree | `CCOS_ENABLE_PRO_STORAGE` |
-| libzip | ZIP archive access | audited local version required | BSD-3-Clause | `CCOS_ENABLE_PRO_STORAGE` |
+| libarchive | Archive/container access | BSD-like / multi-license tree | `CCOS_ENABLE_PRO_STORAGE` |
+| libzip | ZIP archive access | BSD-3-Clause | `CCOS_ENABLE_PRO_STORAGE` |
 
 OpenTimelineIO is intentionally discovered from an audited local C++ installation instead of being fetched automatically. Its current CMake build exposes the `OTIO::opentimelineio` target. OpenColorIO is likewise discovered locally and is accepted only at version 2.5.2 or newer because 2.5.2 contains the upstream security fix for CVE-2026-42450.
 
-The current extension CMake module fetches only the lightweight MIT components and discovers heavyweight codec/image/audio stacks from the host toolchain. This is intentional: blindly fetching large multimedia stacks would make release licensing, patent, and platform-backend auditing harder and would increase build fragility.
+The current extension CMake modules fetch only lightweight optional components and discover heavyweight codec/image/audio stacks from the host toolchain. This is intentional: blindly fetching large multimedia stacks would make release licensing, patent, and platform-backend auditing harder and would increase build fragility.
 
 ## Policy
 
