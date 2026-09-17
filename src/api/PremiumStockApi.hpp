@@ -71,18 +71,18 @@ public:
     ~PremiumStockApi() override;
 
     void searchVideos(const QString& query, int page = 1,
-                      std::function<void(const QVector<StockVideo>&)> callback);
+                      std::function<void(const QVector<StockVideo>&)> callback = {});
     void searchMusic(const QString& genre, std::function<void(const QVector<StockMusic>&)> callback);
     void searchSFX(const QString& category, std::function<void(const QVector<StockSFX>&)> callback);
     void getMotionGraphics(std::function<void(const QVector<MotionGraphic>&)> callback);
 
     void searchCoverrVideos(const QString& query, int page = 1,
-                            std::function<void(const QVector<StockVideo>&)> callback);
+                            std::function<void(const QVector<StockVideo>&)> callback = {});
     void getTrendingVideos(std::function<void(const QVector<StockVideo>&)> callback);
     void getVerticalVideos(std::function<void(const QVector<StockVideo>&)> callback);
 
     void searchPixabayVideos(const QString& query, const QString& apiKey, int page = 1,
-                             std::function<void(const QVector<StockVideo>&)> callback);
+                             std::function<void(const QVector<StockVideo>&)> callback = {});
 
     void searchVidevo(const QString& query, const QString& apiKey,
                       std::function<void(const QVector<StockVideo>&)> callback);
@@ -99,7 +99,7 @@ public:
     void getLifeOfVids(const QString& type,
                        std::function<void(const QVector<StockVideo>&)> callback);
 
-signals:
+Q_SIGNALS:
     void videosReady(const QVector<StockVideo>&);
     void musicReady(const QVector<StockMusic>&);
     void sfxReady(const QVector<StockSFX>&);
