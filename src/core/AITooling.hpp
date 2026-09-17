@@ -129,15 +129,14 @@ public:
     /**
      * @brief Ejecuta la tool con los parámetros dados.
      * @param params Parámetros validados
-     * @param context Contexto adicional (project, timeline, etc.)
+     * @param context Contexto adicional. Para permisos, puede incluir
+     *        `permissions` como QStringList.
      * @return Resultado de la ejecución
      */
     virtual ToolResult execute(const QVariantMap &params, const QVariantMap &context) = 0;
 
     /**
      * @brief Valida los parámetros de entrada contra el schema.
-     * @param params Parámetros a validar
-     * @return Lista de errores de validación (vacía si válido)
      */
     QStringList validateParams(const QVariantMap &params) const;
 
@@ -179,61 +178,30 @@ public:
     explicit AIToolRegistry(QObject *parent = nullptr);
     ~AIToolRegistry() override = default;
 
-    /**
-     * @brief Registra una tool en el sistema.
-     */
     void registerTool(std::shared_ptr<AITool> tool);
-
-    /**
-     * @brief Desregistra una tool.
-     */
     void unregisterTool(const QString &toolName);
-
-    /**
-     * @brief Obtiene una tool por nombre.
-     */
     std::shared_ptr<AITool> getTool(const QString &toolName) const;
-
-    /**
-     * @brief Lista todas las tools registradas.
-     */
     QStringList listTools() const;
 
     /**
      * @brief Ejecuta una tool con validación completa.
      * @param toolName Nombre de la tool
      * @param params Parámetros de entrada
-     * @param context Contexto de ejecución
-     * @param requireConfirmation Si true, bloquea tools que requieren confirmación
-     * @return Resultado de la ejecución
+     * @param context Contexto de ejecución. La clave `permissions`, cuando
+     *        existe, debe contener una QStringList de permisos concedidos.
+     * @param confirmationGranted true cuando el usuario ya otorgó la
+     *        confirmación explícita requerida por la tool.
      */
     ToolResult executeTool(
         const QString &toolName,
         const QVariantMap &params,
         const QVariantMap &context = {},
-        bool requireConfirmation = false
+        bool confirmationGranted = false
     );
 
-    /**
-     * @brief Valida un payload de tool call desde un LLM.
-     * @param payload JSON del LLM
-     * @return Errores de validación
-     */
     QStringList validateLLMPayload(const QJsonObject &payload) const;
-
-    /**
-     * @brief Genera descripción JSON de todas las tools para el LLM.
-     */
     QJsonDocument generateToolsDescription() const;
-
-    /**
-     * @brief Habilita/deshabilita una tool.
-     */
     void setToolEnabled(const QString &toolName, bool enabled);
-
-    /**
-     * @brief Verifica si una tool está habilitada.
-     */
     bool isToolEnabled(const QString &toolName) const;
 
 Q_SIGNALS:
