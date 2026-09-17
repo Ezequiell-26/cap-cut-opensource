@@ -3,6 +3,8 @@
 
 #include <QRegularExpression>
 
+#include <utility>
+
 namespace ccos::render {
 
 HardwareCapabilities HardwareCapabilitiesProbe::detect(const QString& executable) {
