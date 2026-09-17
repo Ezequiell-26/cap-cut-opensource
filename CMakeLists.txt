@@ -14,6 +14,7 @@ option(CCOS_BUILD_TESTS "Build unit tests" ON)
 option(CCOS_BUILD_CLI "Build headless CLI/API runner" ON)
 option(CCOS_FETCH_GTEST "Fetch GoogleTest when it is not installed" ON)
 option(CCOS_ENABLE_MIT_FOUNDATION "Fetch the curated MIT-licensed C++ foundation stack" ON)
+option(CCOS_ENABLE_MIT_MEDIA_3D "Fetch optional MIT C++ libraries for 3D/motion-graphics asset processing" OFF)
 option(CCOS_ENABLE_MINIAUDIO "Make miniaudio available to optional audio device backends" OFF)
 option(CCOS_ENABLE_ONNXRUNTIME "Enable the optional ONNX Runtime integration" OFF)
 option(CCOS_ENABLE_LOCAL_AUTOMATION_API "Build the loopback-only automation API for agents" ON)
@@ -132,6 +133,11 @@ target_link_libraries(ccos_core PUBLIC
 
 if(CCOS_ENABLE_MIT_FOUNDATION)
     target_link_libraries(ccos_core PUBLIC ccos_mit_foundation)
+endif()
+
+if(CCOS_ENABLE_MIT_MEDIA_3D AND TARGET ccos_mit_media_3d)
+    target_link_libraries(ccos_core PUBLIC ccos_mit_media_3d)
+    target_compile_definitions(ccos_core PUBLIC CCOS_HAS_MIT_MEDIA_3D)
 endif()
 
 if(CCOS_ENABLE_MINIAUDIO AND TARGET ccos_miniaudio)
