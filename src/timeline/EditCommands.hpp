@@ -170,10 +170,10 @@ public:
         }
         const double sourceDuration = (clip.sourceOut() - clip.sourceIn()).seconds();
         if (!std::isfinite(sourceDuration) || sourceDuration <= 0.0) return false;
-        clip.setSpeed(newSpeed_);
         const auto newDuration = ccos::core::Time::fromSeconds(sourceDuration / newSpeed_);
         if (newDuration <= ccos::core::Time{}) return false;
-        clip.setDuration(newDuration);
+        clip.setSpeed(newSpeed_);
+        clip.setTimelineDuration(newDuration);
         executed_ = true;
         return true;
     }
@@ -182,7 +182,7 @@ public:
             clipIndex_ >= track_.clips().size()) return;
         auto& clip = track_.clips()[clipIndex_];
         clip.setSpeed(*originalSpeed_);
-        clip.setDuration(*originalDuration_);
+        clip.setTimelineDuration(*originalDuration_);
         executed_ = false;
     }
     QString name() const override { return QStringLiteral("Set Clip Speed"); }
