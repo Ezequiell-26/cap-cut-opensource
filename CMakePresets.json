@@ -21,14 +21,40 @@
         "CMAKE_BUILD_TYPE": "Release",
         "CCOS_BUILD_TESTS": "ON"
       }
+    },
+    {
+      "name": "asan-ubsan",
+      "displayName": "CCOS AddressSanitizer + UBSan",
+      "inherits": "debug",
+      "binaryDir": "${sourceDir}/build/asan-ubsan",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_CXX_FLAGS": "-fsanitize=address,undefined -fno-omit-frame-pointer",
+        "CMAKE_EXE_LINKER_FLAGS": "-fsanitize=address,undefined",
+        "CMAKE_SHARED_LINKER_FLAGS": "-fsanitize=address,undefined"
+      }
+    },
+    {
+      "name": "professional",
+      "displayName": "CCOS Professional Interchange + Color",
+      "inherits": "release",
+      "binaryDir": "${sourceDir}/build/professional",
+      "cacheVariables": {
+        "CCOS_ENABLE_OPENTIMELINEIO": "ON",
+        "CCOS_ENABLE_OPENCOLORIO": "ON"
+      }
     }
   ],
   "buildPresets": [
     { "name": "debug", "configurePreset": "debug", "configuration": "Debug" },
-    { "name": "release", "configurePreset": "release", "configuration": "Release" }
+    { "name": "release", "configurePreset": "release", "configuration": "Release" },
+    { "name": "asan-ubsan", "configurePreset": "asan-ubsan", "configuration": "Debug" },
+    { "name": "professional", "configurePreset": "professional", "configuration": "Release" }
   ],
   "testPresets": [
     { "name": "debug", "configurePreset": "debug", "output": { "outputOnFailure": true } },
-    { "name": "release", "configurePreset": "release", "output": { "outputOnFailure": true } }
+    { "name": "release", "configurePreset": "release", "output": { "outputOnFailure": true } },
+    { "name": "asan-ubsan", "configurePreset": "asan-ubsan", "output": { "outputOnFailure": true } },
+    { "name": "professional", "configurePreset": "professional", "output": { "outputOnFailure": true } }
   ]
 }
