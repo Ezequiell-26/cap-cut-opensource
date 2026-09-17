@@ -18,20 +18,20 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTORCC ON)
 
-# Find required packages including new MIT libraries
-find_package(Qt6 6.4 REQUIRED COMPONENTS Core Gui Network Widgets Multimedia MultimediaWidgets Svg Concurrent)
+include(GNUInstallDirs)
+
+find_package(Qt6 6.4 REQUIRED COMPONENTS Core Gui Network Widgets Multimedia MultimediaWidgets Svg Concurrent Test)
 find_package(OpenCV 4.8 REQUIRED COMPONENTS core imgproc video dnn imgcodecs)
 find_package(Eigen3 REQUIRED)
 find_package(ZLIB REQUIRED)
 
-# Optional packages for enhanced features
+# Optional packages for enhanced features.
 find_package(MediaPipe QUIET)
 find_package(Skia QUIET)
 find_package(RLottie QUIET)
 find_package(NanoSVG QUIET)
 
 add_library(ccos_core
-    # API Layer
     src/api/EditorApi.cpp
     src/api/StockMediaApi.cpp
     src/api/LibreTranslateApi.cpp
@@ -42,63 +42,44 @@ add_library(ccos_core
     src/api/PremiumStockApi.cpp
     src/api/SocialMediaApi.cpp
     src/api/AccessibilityApi.cpp
-    
-    # Computer Vision API (NEW - MIT Libraries)
+
     src/vision/ComputerVisionApi.cpp
-    
-    # Professional Audio API (NEW - MIT Libraries)
     src/audio_pro/AudioProcessingApi.cpp
-    
-    # Graphics & Animation API (NEW - MIT Libraries)
     src/graphics/GraphicsApi.cpp
-    
-    # Core
+
     src/core/Time.cpp
     src/core/Uuid.cpp
     src/core/CommandStack.cpp
     src/core/ProcessRunner.cpp
     src/core/JobSystem.cpp
-    
-    # Project
+
     src/project/Project.cpp
     src/project/ProjectSerializer.cpp
-    
-    # Media
+
     src/media/MediaAsset.cpp
     src/media/MediaImporter.cpp
     src/media/MediaProbe.cpp
     src/media/MediaCache.cpp
     src/media/ProxyManager.cpp
     src/media/MediaDerivatives.cpp
-    
-    # Timeline
+
     src/timeline/Clip.cpp
     src/timeline/Track.cpp
     src/timeline/Timeline.cpp
     src/timeline/TimelineEditor.cpp
     src/timeline/Keyframe.cpp
-    
-    # Audio
+
     src/audio/AudioMixer.cpp
-    
-    # Effects
     src/effects/BuiltinEffects.cpp
-    
-    # Transitions
     src/transitions/Transition.cpp
-    
-    # Text
     src/text/SubtitleParser.cpp
-    
-    # AI/ML
+
     src/ai/WhisperAdapter.cpp
     src/ai/OpenAICompatibleProvider.cpp
     src/ai/AdvancedAI.cpp
-    
-    # Plugins
+
     src/plugins/PluginManager.cpp
-    
-    # Render
+
     src/render/RenderManager.cpp
     src/render/FfmpegExporter.cpp
     src/render/TimelineExporter.cpp
@@ -108,24 +89,23 @@ add_library(ccos_core
     src/render/RenderExecutor.cpp
 )
 
-target_include_directories(ccos_core PUBLIC 
+target_include_directories(ccos_core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${EIGEN3_INCLUDE_DIR}
 )
 
 target_compile_features(ccos_core PUBLIC cxx_std_20)
 target_compile_definitions(ccos_core PUBLIC QT_NO_KEYWORDS)
-
-target_link_libraries(ccos_core PUBLIC 
-    Qt6::Core 
-    Qt6::Gui 
+target_link_libraries(ccos_core PUBLIC
+    Qt6::Core
+    Qt6::Gui
     Qt6::Network
     Qt6::Svg
+    Qt6::Concurrent
     ${OpenCV_LIBS}
     ZLIB::ZLIB
 )
 
-# Optional ML/Vision libraries
 if(TARGET MediaPipe::mediapipe)
     target_link_libraries(ccos_core PUBLIC MediaPipe::mediapipe)
     target_compile_definitions(ccos_core PUBLIC CCOS_HAS_MEDIAPIPE)
@@ -144,10 +124,9 @@ endif()
 if(MSVC)
     target_compile_options(ccos_core PRIVATE /W4 /permissive-)
 else()
-    target_compile_options(ccos_core PRIVATE -Wall -Wextra -Wpedantic)
+    target_compile_options(ccos_core PRIVATE -Wall -Wextra -Wpedantic -Wconversion -Wshadow)
 endif()
 
-# Editor executable
 add_executable(ccos_editor
     src/app/main.cpp
     src/ui/MainWindow.cpp
@@ -159,10 +138,9 @@ target_include_directories(ccos_editor PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 if(MSVC)
     target_compile_options(ccos_editor PRIVATE /W4 /permissive-)
 else()
-    target_compile_options(ccos_editor PRIVATE -Wall -Wextra -Wpedantic)
+    target_compile_options(ccos_editor PRIVATE -Wall -Wextra -Wpedantic -Wconversion -Wshadow)
 endif()
 
-# CLI executable
 if(CCOS_BUILD_CLI)
     add_executable(ccos_cli src/cli/main.cpp)
     target_link_libraries(ccos_cli PRIVATE ccos_core Qt6::Core)
@@ -170,5 +148,62 @@ if(CCOS_BUILD_CLI)
     install(TARGETS ccos_cli RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 endif()
 
-include(GNUInstallDirs)
 install(TARGETS ccos_editor RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} BUNDLE DESTINATION .)
+install(FILES LICENSE DESTINATION ${CMAKE_INSTALL_DOCDIR} RENAME LICENSE.txt)
+
+if(CCOS_BUILD_TESTS)
+    enable_testing()
+
+    find_package(GTest 1.14 QUIET)
+    if(NOT GTest_FOUND AND CCOS_FETCH_GTEST)
+        include(FetchContent)
+        set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
+        set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+        FetchContent_Declare(googletest
+            URL https://github.com/google/googletest/archive/refs/tags/v1.14.0.tar.gz)
+        FetchContent_MakeAvailable(googletest)
+    endif()
+
+    if(NOT TARGET GTest::gtest_main)
+        message(FATAL_ERROR "GoogleTest is required. Install GTest or configure with -DCCOS_FETCH_GTEST=ON.")
+    endif()
+
+    add_executable(ccos_tests
+        tests/core/TimeTests.cpp
+        tests/core/CommandStackTests.cpp
+        tests/project/ProjectTests.cpp
+        tests/project/ProjectClipPropertiesTests.cpp
+        tests/timeline/TimelineTests.cpp
+        tests/timeline/TimelineEditorTests.cpp
+        tests/timeline/KeyframeTests.cpp
+        tests/media/MediaCacheTests.cpp
+        tests/effects/BuiltinEffectsTests.cpp
+        tests/text/SubtitleParserTests.cpp
+        tests/unit/core/JobSystemTest.cpp
+        tests/unit/core/ProcessRunnerTest.cpp
+    )
+
+    target_link_libraries(ccos_tests PRIVATE
+        ccos_core
+        GTest::gtest_main
+        Qt6::Test
+    )
+    target_include_directories(ccos_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+
+    if(MSVC)
+        target_compile_options(ccos_tests PRIVATE /W4 /permissive-)
+    else()
+        target_compile_options(ccos_tests PRIVATE -Wall -Wextra -Wpedantic -Wconversion -Wshadow)
+    endif()
+
+    include(GoogleTest)
+    gtest_discover_tests(ccos_tests)
+endif()
+
+set(CPACK_PACKAGE_NAME "CCOS")
+set(CPACK_PACKAGE_VENDOR "CCOS Open Source")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Open source C++ video editor")
+set(CPACK_PACKAGE_VERSION ${PROJECT_VERSION})
+set(CPACK_PACKAGE_CONTACT "CCOS maintainers")
+set(CPACK_GENERATOR "ZIP;TGZ")
+include(CPack)
