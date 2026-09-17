@@ -24,7 +24,6 @@ set(CMAKE_AUTORCC ON)
 include(GNUInstallDirs)
 
 find_package(Qt6 6.4 REQUIRED COMPONENTS Core Gui Network Widgets Multimedia MultimediaWidgets Svg Concurrent)
-find_package(ZLIB REQUIRED)
 
 set(CCOS_SOURCES
     src/api/EditorApi.cpp
@@ -119,7 +118,6 @@ target_link_libraries(ccos_core PUBLIC
     Qt6::Network
     Qt6::Svg
     Qt6::Concurrent
-    ZLIB::ZLIB
 )
 
 if(CCOS_ENABLE_VISION)
