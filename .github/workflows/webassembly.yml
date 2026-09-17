@@ -83,6 +83,13 @@ jobs:
           emcc --version
           clang-scan-deps --version
 
+      - name: Prepare Emscripten WebGL libraries
+        shell: bash
+        run: |
+          set -euo pipefail
+          source "$CCOS_EMSDK_DIR/emsdk_env.sh"
+          embuilder build libGL
+
       - name: Configure WebAssembly
         shell: bash
         run: |
