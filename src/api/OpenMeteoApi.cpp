@@ -17,13 +17,33 @@ namespace {
 bool getJson(const QUrl& url, QJsonDocument* document) {
     if (!document) return false;
 
+    constexpr qint64 kMaxResponseBytes = 2 * 1024 * 1024;
     QNetworkAccessManager manager;
-    QNetworkReply* reply = manager.get(QNetworkRequest(url));
+    QNetworkRequest request(url);
+    request.setHeader(QNetworkRequest::UserAgentHeader, QStringLiteral("CCOS/0.9 open-meteo-client"));
+    request.setRawHeader("Accept", "application/json");
+    QNetworkReply* reply = manager.get(request);
+
+    const QVariant length = reply->header(QNetworkRequest::ContentLengthHeader);
+    if (length.isValid() && length.toLongLong() > kMaxResponseBytes) {
+        reply->abort();
+    }
+
+    QByteArray payload;
+    bool oversized = false;
+    QObject::connect(reply, &QNetworkReply::readyRead, reply, [&]() {
+        if (oversized) return;
+        payload.append(reply->readAll());
+        if (payload.size() > kMaxResponseBytes) {
+            oversized = true;
+            reply->abort();
+        }
+    });
+
     QEventLoop loop;
     QTimer timeout;
     timeout.setSingleShot(true);
     timeout.start(15'000);
-
     QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
     QObject::connect(&timeout, &QTimer::timeout, &loop, [&loop, reply]() {
         if (reply->isRunning()) reply->abort();
@@ -32,17 +52,22 @@ bool getJson(const QUrl& url, QJsonDocument* document) {
     loop.exec();
 
     if (timeout.isActive()) timeout.stop();
-    if (reply->error() != QNetworkReply::NoError) {
-        reply->deleteLater();
-        return false;
-    }
+    payload.append(reply->readAll());
+    const bool ok = !oversized &&
+                    payload.size() <= kMaxResponseBytes &&
+                    reply->error() == QNetworkReply::NoError;
+    reply->deleteLater();
+    if (!ok) return false;
 
     QJsonParseError parseError{};
-    const QJsonDocument parsed = QJsonDocument::fromJson(reply->readAll(), &parseError);
-    reply->deleteLater();
+    const QJsonDocument parsed = QJsonDocument::fromJson(payload, &parseError);
     if (parseError.error != QJsonParseError::NoError) return false;
     *document = parsed;
     return true;
+}
+
+QString normalizeOptional(const QJsonObject& object, const QString& key) {
+    return object.value(key).toString().trimmed();
 }
 
 QString conditionForCode(int code) {
@@ -60,6 +85,47 @@ QString conditionForCode(int code) {
     }
 }
 
+}
+
+QVector<GeocodedLocation> OpenMeteoApi::parseGeocoding(const QJsonDocument& document) {
+    QVector<GeocodedLocation> results;
+    if (!document.isObject()) return results;
+
+    const auto values = document.object().value(QStringLiteral("results")).toArray();
+    results.reserve(static_cast<int>(std::min<qsizetype>(values.size(), 100)));
+    for (qsizetype i = 0; i < values.size() && i < 100; ++i) {
+        const auto object = values.at(i).toObject();
+        GeocodedLocation result;
+        result.name = object.value(QStringLiteral("name")).toString().trimmed();
+        result.country = object.value(QStringLiteral("country")).toString().trimmed();
+        result.countryCode = object.value(QStringLiteral("country_code")).toString().trimmed().toUpper();
+        result.admin1 = object.value(QStringLiteral("admin1")).toString().trimmed();
+        result.timezone = object.value(QStringLiteral("timezone")).toString().trimmed();
+        result.latitude = object.value(QStringLiteral("latitude")).toDouble();
+        result.longitude = object.value(QStringLiteral("longitude")).toDouble();
+        if (result.name.isEmpty()) continue;
+        if (result.latitude < -90.0 || result.latitude > 90.0 ||
+            result.longitude < -180.0 || result.longitude > 180.0) continue;
+        results.append(result);
+    }
+    return results;
+}
+
+QVector<GeocodedLocation> OpenMeteoApi::searchLocations(const QString& name, int count) {
+    const QString query = name.trimmed();
+    if (query.isEmpty()) return {};
+
+    QUrl url(QStringLiteral("https://geocoding-api.open-meteo.com/v1/search"));
+    QUrlQuery params;
+    params.addQueryItem(QStringLiteral("name"), query);
+    params.addQueryItem(QStringLiteral("count"), QString::number(qBound(1, count, 100)));
+    params.addQueryItem(QStringLiteral("language"), QStringLiteral("en"));
+    params.addQueryItem(QStringLiteral("format"), QStringLiteral("json"));
+    url.setQuery(params);
+
+    QJsonDocument document;
+    if (!getJson(url, &document)) return {};
+    return parseGeocoding(document);
 }
 
 WeatherData OpenMeteoApi::getCurrentWeather(double latitude, double longitude) {
