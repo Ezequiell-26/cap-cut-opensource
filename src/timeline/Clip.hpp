@@ -8,6 +8,7 @@ class Clip {
 public:
     Clip();
     explicit Clip(const ccos::media::MediaAsset& asset);
+    Clip(ccos::core::Uuid id, ccos::core::Uuid assetId);
     [[nodiscard]] const ccos::core::Uuid& id() const noexcept { return id_; }
     [[nodiscard]] const ccos::core::Uuid& assetId() const noexcept { return assetId_; }
     [[nodiscard]] ccos::core::Time start() const noexcept { return start_; }
