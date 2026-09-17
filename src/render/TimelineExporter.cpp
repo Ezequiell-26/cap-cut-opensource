@@ -2,6 +2,8 @@
 #include "render/TimelineCompositor.hpp"
 #include "core/ProcessRunner.hpp"
 
+#include <QFileInfo>
+
 namespace ccos::render {
 
 bool TimelineExporter::exportContiguousVideo(const ccos::project::Project& project,
