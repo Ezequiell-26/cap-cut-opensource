@@ -1,9 +1,7 @@
 #include "core/JobSystem.hpp"
 
-#include <QCoreApplication>
 #include <QLoggingCategory>
 #include <QMetaObject>
-#include <QThreadPool>
 #include <QtConcurrent>
 
 #include <algorithm>
@@ -16,6 +14,9 @@ namespace ccos::core {
 JobSystem::JobSystem(int maxConcurrentJobs, QObject* parent)
     : QObject(parent)
     , m_maxConcurrentJobs(std::max(1, maxConcurrentJobs)) {
+    qRegisterMetaType<JobState>("ccos::core::JobState");
+    qRegisterMetaType<JobType>("ccos::core::JobType");
+    qRegisterMetaType<JobError>("ccos::core::JobError");
     qCInfo(ccos_core_job) << "JobSystem initialized with max concurrent jobs:" << m_maxConcurrentJobs;
 }
 
@@ -73,6 +74,8 @@ QString JobSystem::enqueue(const JobConfig& config) {
 
 bool JobSystem::cancelJob(const QString& jobId) {
     JobPtr job;
+    bool cancelledImmediately = false;
+
     {
         QMutexLocker locker(&m_mutex);
         const auto it = m_jobs.constFind(jobId);
@@ -91,18 +94,19 @@ bool JobSystem::cancelJob(const QString& jobId) {
             job->status.state = JobState::CANCELLED;
             job->status.completedAt = QDateTime::currentDateTimeUtc();
             m_jobQueue.removeAll(jobId);
+            cancelledImmediately = true;
         } else if (job->status.state == JobState::RUNNING || job->status.state == JobState::PAUSED) {
             job->status.state = JobState::CANCELLING;
         }
     }
 
-    emit jobCancelled(jobId);
+    if (cancelledImmediately) emit jobCancelled(jobId);
     scheduleExecution();
     return true;
 }
 
 void JobSystem::cancelAll() {
-    QList<QString> cancelledQueued;
+    QStringList cancelledQueued;
     {
         QMutexLocker locker(&m_mutex);
         for (auto it = m_jobs.cbegin(); it != m_jobs.cend(); ++it) {
@@ -171,22 +175,18 @@ QList<JobStatus> JobSystem::getAllJobs() const {
 
 void JobSystem::cleanupOldJobs(int olderThanHours) {
     const QDateTime threshold = QDateTime::currentDateTimeUtc().addSecs(-std::max(0, olderThanHours) * 3600);
-    QStringList removed;
-
     QMutexLocker locker(&m_mutex);
     for (auto it = m_jobs.begin(); it != m_jobs.end();) {
         const auto& job = it.value();
-        if (job && (job->status.state == JobState::COMPLETED || job->status.state == JobState::FAILED ||
-                    job->status.state == JobState::CANCELLED) && job->status.completedAt.isValid() &&
-            job->status.completedAt < threshold) {
-            removed.append(it.key());
+        const bool terminal = job && (job->status.state == JobState::COMPLETED ||
+                                      job->status.state == JobState::FAILED ||
+                                      job->status.state == JobState::CANCELLED);
+        if (terminal && job->status.completedAt.isValid() && job->status.completedAt < threshold) {
             it = m_jobs.erase(it);
         } else {
             ++it;
         }
     }
-
-    if (!removed.isEmpty()) qCInfo(ccos_core_job) << "Removed" << removed.size() << "old jobs";
 }
 
 int JobSystem::activeJobCount() const {
@@ -232,6 +232,7 @@ void JobSystem::executeJob(const JobPtr& job) {
     const JobControlPtr control = job->control;
     const auto executeFn = job->config.executeFn;
     const auto cooperativeFn = job->config.cooperativeExecuteFn;
+    const bool retryExceptions = job->config.retryExceptions;
 
     connect(watcher, &QFutureWatcher<ExecutionOutcome>::finished, this,
             [this, watcher, jobId]() {
@@ -240,7 +241,7 @@ void JobSystem::executeJob(const JobPtr& job) {
                 onJobFinished(jobId, outcome.result, outcome.error);
             });
 
-    const auto future = QtConcurrent::run([control, executeFn, cooperativeFn]() -> ExecutionOutcome {
+    const auto future = QtConcurrent::run([control, executeFn, cooperativeFn, retryExceptions]() -> ExecutionOutcome {
         try {
             if (control->isCancelled()) {
                 return {{}, JobError::failed(QStringLiteral("Job cancelled before execution"), -2, false)};
@@ -255,9 +256,9 @@ void JobSystem::executeJob(const JobPtr& job) {
             }
             return {std::move(result), JobError::success()};
         } catch (const std::exception& exception) {
-            return {{}, JobError::failed(QString::fromUtf8(exception.what()), -1, false)};
+            return {{}, JobError::failed(QString::fromUtf8(exception.what()), -1, retryExceptions)};
         } catch (...) {
-            return {{}, JobError::failed(QStringLiteral("Unknown exception from job"), -1, false)};
+            return {{}, JobError::failed(QStringLiteral("Unknown exception from job"), -1, retryExceptions)};
         }
     });
 
@@ -266,7 +267,7 @@ void JobSystem::executeJob(const JobPtr& job) {
 
 void JobSystem::onJobFinished(const QString& jobId, const QVariant& result, const JobError& error) {
     JobPtr job;
-    bool shouldSchedule = true;
+    bool retrying = false;
 
     {
         QMutexLocker locker(&m_mutex);
@@ -286,22 +287,23 @@ void JobSystem::onJobFinished(const QString& jobId, const QVariant& result, cons
             job->status.result = result;
         } else {
             handleJobFailure(job, error);
-            shouldSchedule = false;
+            retrying = job->status.state == JobState::QUEUED;
         }
     }
 
     if (job->status.state == JobState::COMPLETED) {
+        if (job->config.progressCallback) job->config.progressCallback(1.0);
         if (job->config.completionCallback) job->config.completionCallback(JobError::success());
         emit jobCompleted(jobId, result);
     } else if (job->status.state == JobState::CANCELLED) {
         if (job->config.completionCallback) job->config.completionCallback(JobError::failed(QStringLiteral("Job cancelled"), -2, false));
         emit jobCancelled(jobId);
-    } else if (job->status.state == JobState::FAILED) {
+    } else if (!retrying && job->status.state == JobState::FAILED) {
         if (job->config.completionCallback) job->config.completionCallback(job->status.error);
         emit jobFailed(jobId, job->status.error);
     }
 
-    if (shouldSchedule) scheduleExecution();
+    scheduleExecution();
 }
 
 void JobSystem::handleJobFailure(const JobPtr& job, const JobError& error) {
