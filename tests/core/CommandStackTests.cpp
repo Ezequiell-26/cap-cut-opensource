@@ -27,10 +27,7 @@ public:
         return true;
     }
 
-    bool redo() override {
-        return false;
-    }
-
+    bool redo() override { return false; }
     void undo() override { --value_; }
     QString name() const override { return QStringLiteral("FailingRedo"); }
 
@@ -60,4 +57,13 @@ TEST(CommandStackTests, FailedRedoKeepsCommandAvailable) {
     EXPECT_FALSE(stack.redo());
     EXPECT_TRUE(stack.canRedo());
     EXPECT_FALSE(stack.canUndo());
+}
+
+TEST(CommandStackTests, ZeroHistoryDoesNotCrashOrRetainUndo) {
+    int value = 0;
+    ccos::core::CommandStack stack(0);
+    EXPECT_TRUE(stack.execute(std::make_unique<CounterCommand>(value)));
+    EXPECT_EQ(value, 1);
+    EXPECT_FALSE(stack.canUndo());
+    EXPECT_FALSE(stack.canRedo());
 }
