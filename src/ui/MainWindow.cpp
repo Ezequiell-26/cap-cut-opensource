@@ -113,6 +113,27 @@ void MainWindow::setDirty(bool dirty) {
                        .arg(project_.name(), dirty_ ? QStringLiteral(" *") : QString()));
 }
 
+bool MainWindow::confirmDocumentTransition() {
+    if (!dirty_) return true;
+
+    const auto answer = QMessageBox::warning(
+        this,
+        QStringLiteral("Unsaved Changes"),
+        QStringLiteral("The project has unsaved changes. Save before continuing?"),
+        QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel,
+        QMessageBox::Save);
+
+    if (answer == QMessageBox::Cancel) return false;
+    if (answer == QMessageBox::Save) {
+        saveProject();
+        return !dirty_;
+    }
+
+    QFile::remove(recoveryPath());
+    setDirty(false);
+    return true;
+}
+
 void MainWindow::autosave() {
     if (!dirty_) return;
     QString error;
@@ -124,27 +145,9 @@ void MainWindow::autosave() {
 }
 
 void MainWindow::closeEvent(QCloseEvent* event) {
-    if (dirty_) {
-        const auto answer = QMessageBox::warning(
-            this,
-            QStringLiteral("Unsaved Changes"),
-            QStringLiteral("The project has unsaved changes. Save before closing?"),
-            QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel,
-            QMessageBox::Save);
-        if (answer == QMessageBox::Cancel) {
-            event->ignore();
-            return;
-        }
-        if (answer == QMessageBox::Save) {
-            saveProject();
-            if (dirty_) {
-                event->ignore();
-                return;
-            }
-        } else {
-            QFile::remove(recoveryPath());
-            setDirty(false);
-        }
+    if (!confirmDocumentTransition()) {
+        event->ignore();
+        return;
     }
 
     player_->stop();
@@ -303,12 +306,20 @@ void MainWindow::buildMenus() {
 }
 
 void MainWindow::newProject() {
+    if (!confirmDocumentTransition()) return;
+
     bool ok = false;
     const auto name = QInputDialog::getText(this, QStringLiteral("New Project"), QStringLiteral("Project name:"), QLineEdit::Normal, QStringLiteral("Untitled Project"), &ok);
     if (!ok) return;
-    player_->stop(); commandStack_.clear(); QFile::remove(recoveryPath());
+    player_->stop();
+    commandStack_.clear();
+    QFile::remove(recoveryPath());
     project_ = ccos::project::Project(name.trimmed().isEmpty() ? QStringLiteral("Untitled Project") : name.trimmed());
-    projectPath_.clear(); refreshMediaBin(); refreshTimeline(); setDirty(false); statusLabel_->setText(QStringLiteral("New project created"));
+    projectPath_.clear();
+    refreshMediaBin();
+    refreshTimeline();
+    setDirty(false);
+    statusLabel_->setText(QStringLiteral("New project created"));
 }
 
 QString MainWindow::projectDialogPath(bool save) const {
@@ -327,12 +338,20 @@ void MainWindow::saveProject() {
 }
 
 void MainWindow::openProject() {
+    if (!confirmDocumentTransition()) return;
+
     const auto path = projectDialogPath(false); if (path.isEmpty()) return;
     QString error; ccos::project::Project loaded;
     if (!ccos::project::ProjectSerializer::load(loaded, path, &error)) { QMessageBox::critical(this, QStringLiteral("Open failed"), error); return; }
     QFile::remove(recoveryPath());
-    player_->stop(); commandStack_.clear(); project_ = std::move(loaded); projectPath_ = path;
-    refreshMediaBin(); refreshTimeline(); setDirty(false); statusLabel_->setText(QStringLiteral("Opened: %1").arg(QFileInfo(path).fileName()));
+    player_->stop();
+    commandStack_.clear();
+    project_ = std::move(loaded);
+    projectPath_ = path;
+    refreshMediaBin();
+    refreshTimeline();
+    setDirty(false);
+    statusLabel_->setText(QStringLiteral("Opened: %1").arg(QFileInfo(path).fileName()));
 }
 
 void MainWindow::importMedia() {
