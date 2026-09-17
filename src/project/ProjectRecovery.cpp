@@ -55,7 +55,8 @@ bool ProjectRecoveryManager::load(const QString& path, Project* project, QString
 
 bool ProjectRecoveryManager::remove(const Project& project) const {
     const QString path = pathFor(project);
-    return !path.isEmpty() && !QFileInfo::exists(path) ? true : QFile::remove(path);
+    if (path.isEmpty() || !QFileInfo::exists(path)) return true;
+    return QFile::remove(path);
 }
 
 } // namespace ccos::project
