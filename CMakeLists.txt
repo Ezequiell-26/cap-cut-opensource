@@ -90,6 +90,7 @@ set(CCOS_SOURCES
     src/effects/BuiltinEffects.cpp
     src/transitions/Transition.cpp
     src/text/SubtitleParser.cpp
+    src/text/TextShaper.cpp
     src/ai/WhisperAdapter.cpp
     src/ai/OpenAICompatibleProvider.cpp
     src/ai/LlamaCppProvider.cpp
@@ -138,6 +139,8 @@ if(CCOS_ENABLE_VISION)
 endif()
 target_compile_features(ccos_core PUBLIC cxx_std_20)
 target_link_libraries(ccos_core PUBLIC Qt6::Core Qt6::Gui Qt6::Network Qt6::Concurrent)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/CCOSTextShaping.cmake)
+ccos_configure_text_shaping(ccos_core)
 if(CCOS_ENABLE_MIT_FOUNDATION)
     target_link_libraries(ccos_core PUBLIC ccos_mit_foundation)
 endif()
@@ -237,6 +240,7 @@ if(CCOS_BUILD_TESTS)
         tests/media/WaveformGeneratorTests.cpp
         tests/effects/BuiltinEffectsTests.cpp
         tests/text/SubtitleParserTests.cpp
+        tests/unit/text/TextShaperTest.cpp
         tests/unit/core/JobSystemSmokeTest.cpp
         tests/unit/core/ProcessRunnerTest.cpp
         tests/unit/core/PipelineGraphTest.cpp
