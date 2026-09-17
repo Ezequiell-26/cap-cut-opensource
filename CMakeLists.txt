@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.24)
 
 project(CCOS
-    VERSION 0.4.0
+    VERSION 0.5.0
     DESCRIPTION "CCOS - Open Source Professional Video Editor"
     LANGUAGES CXX
 )
@@ -11,6 +11,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(CCOS_BUILD_TESTS "Build unit tests" ON)
+option(CCOS_BUILD_CLI "Build headless CLI/API runner" ON)
 option(CCOS_FETCH_GTEST "Fetch GoogleTest when it is not installed" ON)
 
 set(CMAKE_AUTOMOC ON)
@@ -20,6 +21,7 @@ set(CMAKE_AUTORCC ON)
 find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Widgets Multimedia MultimediaWidgets)
 
 add_library(ccos_core
+    src/api/EditorApi.cpp
     src/core/Time.cpp
     src/core/Uuid.cpp
     src/core/CommandStack.cpp
@@ -67,7 +69,6 @@ add_executable(ccos_editor
     src/ui/MainWindow.cpp
     src/ui/MainWindow.hpp
 )
-
 target_link_libraries(ccos_editor PRIVATE ccos_core Qt6::Widgets Qt6::Multimedia Qt6::MultimediaWidgets)
 target_include_directories(ccos_editor PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
@@ -75,6 +76,13 @@ if(MSVC)
     target_compile_options(ccos_editor PRIVATE /W4 /permissive-)
 else()
     target_compile_options(ccos_editor PRIVATE -Wall -Wextra -Wpedantic -Wconversion -Wshadow)
+endif()
+
+if(CCOS_BUILD_CLI)
+    add_executable(ccos_cli src/cli/main.cpp)
+    target_link_libraries(ccos_cli PRIVATE ccos_core Qt6::Core)
+    target_include_directories(ccos_cli PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    install(TARGETS ccos_cli RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 endif()
 
 include(GNUInstallDirs)
