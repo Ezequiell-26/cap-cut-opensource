@@ -3,6 +3,7 @@
 #include "render/TextComposer.hpp"
 #include <QFileInfo>
 #include <algorithm>
+#include <cmath>
 #include <QVector>
 
 namespace ccos::render {
