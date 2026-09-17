@@ -6,6 +6,8 @@
 #include <QFutureWatcher>
 #include <QHash>
 #include <QMutex>
+#include <QPointer>
+#include <QQueue>
 #include <QSharedPointer>
 #include <QString>
 #include <QVariant>
@@ -13,6 +15,7 @@
 #include <atomic>
 #include <functional>
 #include <memory>
+#include <optional>
 
 namespace ccos::core {
 
@@ -214,3 +217,7 @@ private:
 };
 
 } // namespace ccos::core
+
+Q_DECLARE_METATYPE(ccos::core::JobState)
+Q_DECLARE_METATYPE(ccos::core::JobType)
+Q_DECLARE_METATYPE(ccos::core::JobError)
