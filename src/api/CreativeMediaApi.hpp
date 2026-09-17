@@ -64,7 +64,7 @@ public:
 
     static QString kindToString(CreativeMediaKind kind);
 
-signals:
+Q_SIGNALS:
     void resultsReady(const QVector<CreativeMediaItem>& results);
     void errorOccurred(const QString& provider, const QString& message);
 
