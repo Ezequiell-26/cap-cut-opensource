@@ -2,7 +2,7 @@ include(FetchContent)
 
 # Optional extensions. They are deliberately OFF by default so a normal CCOS
 # checkout keeps the existing build footprint and network requirements.
-option(CCOS_ENABLE_MIT_UI_EXTENSIONS "Enable Dear ImGui + ImGuizmo integration" OFF)
+option(CCOS_ENABLE_MIT_UI_EXTENSIONS "Enable Dear ImGui + ImGuizmo + ImPlot integration" OFF)
 option(CCOS_ENABLE_MIT_DIAGNOSTICS "Enable cpptrace crash/stack diagnostics" OFF)
 option(CCOS_ENABLE_MIT_STORAGE "Enable unordered_dense/date/foonathan memory helpers" OFF)
 option(CCOS_ENABLE_MIT_COMPRESSION "Enable optional libdeflate compression backend" OFF)
@@ -43,7 +43,13 @@ if(CCOS_ENABLE_MIT_UI_EXTENSIONS)
         GIT_TAG 1.83
         GIT_SHALLOW TRUE
     )
-    FetchContent_MakeAvailable(imguizmo)
+    FetchContent_Declare(
+        implot
+        GIT_REPOSITORY https://github.com/epezent/implot.git
+        GIT_TAG v1.0
+        GIT_SHALLOW TRUE
+    )
+    FetchContent_MakeAvailable(imguizmo implot)
 
     if(NOT TARGET ccos_imguizmo)
         add_library(ccos_imguizmo STATIC
@@ -54,8 +60,18 @@ if(CCOS_ENABLE_MIT_UI_EXTENSIONS)
         target_compile_features(ccos_imguizmo PUBLIC cxx_std_20)
     endif()
 
-    target_link_libraries(ccos_extended_open_source INTERFACE ccos_imgui ccos_imguizmo)
-    target_compile_definitions(ccos_extended_open_source INTERFACE CCOS_HAS_IMGUI CCOS_HAS_IMGUIZMO)
+    if(NOT TARGET ccos_implot)
+        add_library(ccos_implot STATIC
+            ${implot_SOURCE_DIR}/implot.cpp
+            ${implot_SOURCE_DIR}/implot_items.cpp
+        )
+        target_include_directories(ccos_implot PUBLIC ${implot_SOURCE_DIR})
+        target_link_libraries(ccos_implot PUBLIC ccos_imgui)
+        target_compile_features(ccos_implot PUBLIC cxx_std_20)
+    endif()
+
+    target_link_libraries(ccos_extended_open_source INTERFACE ccos_imgui ccos_imguizmo ccos_implot)
+    target_compile_definitions(ccos_extended_open_source INTERFACE CCOS_HAS_IMGUI CCOS_HAS_IMGUIZMO CCOS_HAS_IMPLOT)
 endif()
 
 if(CCOS_ENABLE_MIT_DIAGNOSTICS)
