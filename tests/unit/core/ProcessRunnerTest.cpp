@@ -3,6 +3,7 @@
 #include "core/ProcessRunner.hpp"
 
 #include <QFuture>
+#include <QProcessEnvironment>
 #include <QStringList>
 #include <thread>
 
@@ -86,4 +87,30 @@ TEST(ProcessRunnerTest, OutputIsBounded) {
 
     EXPECT_TRUE(result.outputTruncated);
     EXPECT_LE(result.standardOutput.size(), config.maxOutputSize);
+}
+
+TEST(ProcessRunnerTest, SanitizedEnvironmentRemovesCredentialLikeVariables) {
+    QProcessEnvironment environment;
+    environment.insert(QStringLiteral("PATH"), QStringLiteral("/safe/path"));
+    environment.insert(QStringLiteral("OPENAI_API_KEY"), QStringLiteral("secret"));
+    environment.insert(QStringLiteral("MY_SESSION_TOKEN"), QStringLiteral("secret"));
+    environment.insert(QStringLiteral("BUILD_MODE"), QStringLiteral("release"));
+
+    const QProcessEnvironment sanitized = ProcessRunner::sanitizedEnvironment(environment);
+
+    EXPECT_EQ(sanitized.value(QStringLiteral("PATH")), QStringLiteral("/safe/path"));
+    EXPECT_EQ(sanitized.value(QStringLiteral("BUILD_MODE")), QStringLiteral("release"));
+    EXPECT_FALSE(sanitized.contains(QStringLiteral("OPENAI_API_KEY")));
+    EXPECT_FALSE(sanitized.contains(QStringLiteral("MY_SESSION_TOKEN")));
+}
+
+TEST(ProcessRunnerTest, SanitizedEnvironmentPreservesNonCredentialConfiguration) {
+    QProcessEnvironment environment;
+    environment.insert(QStringLiteral("FFMPEG_FORCE_NOCOLOR"), QStringLiteral("1"));
+    environment.insert(QStringLiteral("LANG"), QStringLiteral("C.UTF-8"));
+
+    const QProcessEnvironment sanitized = ProcessRunner::sanitizedEnvironment(environment);
+
+    EXPECT_EQ(sanitized.value(QStringLiteral("FFMPEG_FORCE_NOCOLOR")), QStringLiteral("1"));
+    EXPECT_EQ(sanitized.value(QStringLiteral("LANG")), QStringLiteral("C.UTF-8"));
 }
