@@ -20,15 +20,9 @@ bool isCredentialEnvironmentName(const QString& name) {
     if (upper.isEmpty()) return false;
 
     static const QStringList blockedFragments{
-        QStringLiteral("API_KEY"),
-        QStringLiteral("ACCESS_KEY"),
-        QStringLiteral("SECRET"),
-        QStringLiteral("TOKEN"),
-        QStringLiteral("PASSWORD"),
-        QStringLiteral("PASSWD"),
-        QStringLiteral("CREDENTIAL"),
-        QStringLiteral("PRIVATE_KEY"),
-        QStringLiteral("AUTHORIZATION")
+        QStringLiteral("API_KEY"), QStringLiteral("ACCESS_KEY"), QStringLiteral("SECRET"),
+        QStringLiteral("TOKEN"), QStringLiteral("PASSWORD"), QStringLiteral("PASSWD"),
+        QStringLiteral("CREDENTIAL"), QStringLiteral("PRIVATE_KEY"), QStringLiteral("AUTHORIZATION")
     };
 
     for (const QString& fragment : blockedFragments) {
@@ -41,8 +35,7 @@ bool isCredentialEnvironmentName(const QString& name) {
 
 QString ProcessResult::errorMessage() const {
     if (!started) {
-        return standardError.isEmpty() ? QStringLiteral("Process failed to start")
-                                       : QString::fromUtf8(standardError);
+        return standardError.isEmpty() ? QStringLiteral("Process failed to start") : QString::fromUtf8(standardError);
     }
     if (cancelled) return QStringLiteral("Process cancelled by user");
     if (timedOut) return QStringLiteral("Process timed out");
@@ -54,47 +47,43 @@ QString ProcessResult::errorMessage() const {
     return {};
 }
 
-ProcessRunner::ProcessRunner(QObject* parent)
-    : QObject(parent) {}
+ProcessRunner::ProcessRunner(QObject* parent) : QObject(parent) {}
 
-ProcessRunner::~ProcessRunner() {
-    cancelAll();
-}
+ProcessRunner::~ProcessRunner() { cancelAll(); }
 
 bool ProcessRunner::validateExecutable(const QString& executable) {
     const QString value = executable.trimmed();
     if (value.isEmpty()) return false;
-
+#ifdef __EMSCRIPTEN__
+    Q_UNUSED(value);
+    return false;
+#else
     const QFileInfo info(value);
     if (info.isAbsolute() || value.contains(QDir::separator()) || value.contains(QLatin1Char('/')) || value.contains(QLatin1Char('\\'))) {
         return info.exists() && info.isFile() && info.isExecutable();
     }
-
     return !QStandardPaths::findExecutable(value).isEmpty();
+#endif
 }
 
 QProcessEnvironment ProcessRunner::sanitizedEnvironment(const QProcessEnvironment& source) {
     QProcessEnvironment sanitized;
-    const QStringList keys = source.keys();
-    for (const QString& key : keys) {
+    for (const QString& key : source.keys()) {
         if (!isCredentialEnvironmentName(key)) sanitized.insert(key, source.value(key));
     }
     return sanitized;
 }
 
-void ProcessRunner::appendBounded(QByteArray& destination, const QByteArray& data, qint64 maxSize,
-                                  bool& truncated) {
+void ProcessRunner::appendBounded(QByteArray& destination, const QByteArray& data, qint64 maxSize, bool& truncated) {
     if (data.isEmpty() || maxSize <= 0) {
         if (!data.isEmpty()) truncated = true;
         return;
     }
-
     const qint64 remaining = maxSize - destination.size();
     if (remaining <= 0) {
         truncated = true;
         return;
     }
-
     const qsizetype toAppend = std::min<qsizetype>(data.size(), static_cast<qsizetype>(remaining));
     destination.append(data.constData(), toAppend);
     if (toAppend < data.size()) truncated = true;
@@ -104,39 +93,33 @@ ProcessResult ProcessRunner::runProcess(const ProcessConfig& config, const Contr
     ProcessResult result;
     result.executable = config.executable;
     result.arguments = config.arguments;
-
+#ifdef __EMSCRIPTEN__
+    Q_UNUSED(control);
+    result.standardError = QByteArrayLiteral("Native process execution is unavailable in CCOS WebAssembly");
+    return result;
+#else
     const qint64 timeoutMs = std::max<qint64>(0, config.timeout.count());
     const qint64 startupTimeoutMs = std::max<qint64>(0, config.startupTimeout.count());
 
     if (!validateExecutable(config.executable)) {
-        result.standardError = QStringLiteral("Executable not found or not executable: %1")
-                                   .arg(config.executable)
-                                   .toUtf8();
+        result.standardError = QStringLiteral("Executable not found or not executable: %1").arg(config.executable).toUtf8();
         return result;
     }
 
     QProcess process;
     process.setProgram(config.executable);
     process.setArguments(config.arguments);
-
     if (!config.workingDirectory.isEmpty()) {
         const QFileInfo workDir(config.workingDirectory);
         if (!workDir.exists() || !workDir.isDir()) {
-            result.standardError = QStringLiteral("Working directory does not exist: %1")
-                                       .arg(config.workingDirectory)
-                                       .toUtf8();
+            result.standardError = QStringLiteral("Working directory does not exist: %1").arg(config.workingDirectory).toUtf8();
             return result;
         }
         process.setWorkingDirectory(config.workingDirectory);
     }
 
-    // Preserve the historical contract: an explicitly supplied environment
-    // replaces the inherited environment; an empty environment inherits when
-    // requested by the caller. Sanitization is applied to the actual launch set.
     if (!config.environment.isEmpty()) {
-        process.setProcessEnvironment(config.sanitizeEnvironment
-                                          ? sanitizedEnvironment(config.environment)
-                                          : config.environment);
+        process.setProcessEnvironment(config.sanitizeEnvironment ? sanitizedEnvironment(config.environment) : config.environment);
     } else if (config.inheritEnvironment) {
         const QProcessEnvironment environment = QProcessEnvironment::systemEnvironment();
         process.setProcessEnvironment(config.sanitizeEnvironment ? sanitizedEnvironment(environment) : environment);
@@ -157,7 +140,6 @@ ProcessResult ProcessRunner::runProcess(const ProcessConfig& config, const Contr
 
     result.started = true;
     bool finished = false;
-
     while (!finished) {
         if (control && control->cancelled.load(std::memory_order_relaxed)) {
             result.cancelled = true;
@@ -173,15 +155,8 @@ ProcessResult ProcessRunner::runProcess(const ProcessConfig& config, const Contr
             finished = process.waitForFinished(50);
         }
 
-        if (config.readStandardOutput) {
-            appendBounded(result.standardOutput, process.readAllStandardOutput(), config.maxOutputSize,
-                          result.outputTruncated);
-        }
-        if (config.readStandardError) {
-            appendBounded(result.standardError, process.readAllStandardError(), config.maxOutputSize,
-                          result.errorTruncated);
-        }
-
+        if (config.readStandardOutput) appendBounded(result.standardOutput, process.readAllStandardOutput(), config.maxOutputSize, result.outputTruncated);
+        if (config.readStandardError) appendBounded(result.standardError, process.readAllStandardError(), config.maxOutputSize, result.errorTruncated);
         if (!finished && process.state() == QProcess::NotRunning) finished = true;
     }
 
@@ -189,20 +164,14 @@ ProcessResult ProcessRunner::runProcess(const ProcessConfig& config, const Contr
         process.kill();
         process.waitForFinished(1000);
     }
-
-    if (config.readStandardOutput) {
-        appendBounded(result.standardOutput, process.readAllStandardOutput(), config.maxOutputSize,
-                      result.outputTruncated);
-    }
-    if (config.readStandardError) {
-        appendBounded(result.standardError, process.readAllStandardError(), config.maxOutputSize,
-                      result.errorTruncated);
-    }
+    if (config.readStandardOutput) appendBounded(result.standardOutput, process.readAllStandardOutput(), config.maxOutputSize, result.outputTruncated);
+    if (config.readStandardError) appendBounded(result.standardError, process.readAllStandardError(), config.maxOutputSize, result.errorTruncated);
 
     result.exitStatus = process.exitStatus();
     result.exitCode = process.exitCode();
     result.durationMs = timer.elapsed();
     return result;
+#endif
 }
 
 QFuture<ProcessResult> ProcessRunner::execute(const ProcessConfig& config) {
@@ -219,20 +188,16 @@ QFuture<ProcessResult> ProcessRunner::execute(const ProcessConfig& config) {
     }
 
     emit processStarted(config.executable, config.arguments);
-
-    const QFuture<ProcessResult> future = QtConcurrent::run([config, control]() {
-        return runProcess(config, control);
-    });
+    const QFuture<ProcessResult> future = QtConcurrent::run([config, control]() { return runProcess(config, control); });
 
     auto* watcher = new QFutureWatcher<ProcessResult>(this);
-    connect(watcher, &QFutureWatcher<ProcessResult>::finished, this,
-            [this, watcher, control, config]() {
-                const ProcessResult result = watcher->result();
-                removeControl(control);
-                watcher->deleteLater();
-                emit processFinished(result);
-                if (!result.isSuccess()) emit processError(result.errorMessage(), config);
-            });
+    connect(watcher, &QFutureWatcher<ProcessResult>::finished, this, [this, watcher, control, config]() {
+        const ProcessResult result = watcher->result();
+        removeControl(control);
+        watcher->deleteLater();
+        emit processFinished(result);
+        if (!result.isSuccess()) emit processError(result.errorMessage(), config);
+    });
     watcher->setFuture(future);
     return future;
 }
