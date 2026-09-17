@@ -12,6 +12,8 @@ bool FfmpegExporter::exportAsset(const ccos::media::MediaAsset& asset, const QSt
         return false;
     }
 
+    if (!settings.validate(error)) return false;
+
     QStringList args{
         QStringLiteral("-y"), QStringLiteral("-i"), asset.path(),
         QStringLiteral("-vf"), QStringLiteral("scale=%1:%2:force_original_aspect_ratio=decrease,pad=%1:%2:(ow-iw)/2:(oh-ih)/2")
