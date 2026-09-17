@@ -14,6 +14,7 @@ namespace {
 
 constexpr int kMaxExtensionLength = 16;
 constexpr int kCacheKeyLength = 64;
+constexpr qint64 kMaxEntryBytes = 64LL * 1024LL * 1024LL;
 
 bool isHex(const QChar c) noexcept {
     return (c >= QLatin1Char('0') && c <= QLatin1Char('9')) ||
@@ -75,6 +76,8 @@ QString MediaCache::pathFor(const QString& source, const QString& variant, const
 }
 
 bool MediaCache::write(const QString& source, const QString& variant, const QByteArray& data, const QString& extension) {
+    if (data.size() > kMaxEntryBytes || static_cast<std::size_t>(std::max<qint64>(0, data.size())) > maxBytes_) return false;
+
     const QString path = pathFor(source, variant, extension);
     if (path.isEmpty()) return false;
 
@@ -96,6 +99,8 @@ QByteArray MediaCache::read(const QString& source, const QString& variant, const
 
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly)) return {};
+    const qint64 size = file.size();
+    if (size < 0 || size > kMaxEntryBytes) return {};
     return file.readAll();
 }
 
