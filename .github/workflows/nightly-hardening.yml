@@ -1,0 +1,46 @@
+name: Nightly Hardening
+
+on:
+  schedule:
+    - cron: '43 2 * * 0'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ccos-nightly-${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  hardening:
+    timeout-minutes: 60
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Native C++ guard
+        run: |
+          cmake -S tools/ccos_guard -B build-guard -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build build-guard --parallel
+          ctest --test-dir build-guard --output-on-failure
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build build-essential
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.3'
+          host: linux
+          target: desktop
+          arch: linux_gcc_64
+          modules: 'qtmultimedia;qtsvg'
+          cache: true
+      - name: Configure and build
+        run: |
+          cmake -S . -B build -G Ninja -DCCOS_BUILD_TESTS=ON -DCCOS_FETCH_GTEST=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo
+          cmake --build build --parallel
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+      - name: Package smoke test
+        run: cpack --config build/CPackConfig.cmake -G TGZ
