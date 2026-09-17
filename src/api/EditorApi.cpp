@@ -2,10 +2,42 @@
 #include "render/ExportPresets.hpp"
 #include "render/HardwareCapabilities.hpp"
 #include "render/TimelineExporter.hpp"
+#include "timeline/TimelineEditor.hpp"
 #include <QFileInfo>
 #include <QJsonArray>
 
 namespace ccos::api {
+namespace {
+
+bool parseNonNegativeIndex(const QJsonObject& request, const QString& key, int* value, QString* error) {
+    if (!value || !request.contains(key) || !request.value(key).isDouble()) {
+        if (error) *error = QStringLiteral("%1 is required and must be an integer").arg(key);
+        return false;
+    }
+    const double raw = request.value(key).toDouble();
+    if (raw < 0.0 || raw != static_cast<double>(static_cast<int>(raw))) {
+        if (error) *error = QStringLiteral("%1 must be a non-negative integer").arg(key);
+        return false;
+    }
+    *value = static_cast<int>(raw);
+    return true;
+}
+
+QJsonObject editResult(const ccos::timeline::Track& track, int clipIndex) {
+    const auto& clip = track.clips()[static_cast<std::size_t>(clipIndex)];
+    return QJsonObject{
+        {QStringLiteral("ok"), true},
+        {QStringLiteral("track"), track.name()},
+        {QStringLiteral("clipIndex"), clipIndex},
+        {QStringLiteral("clipId"), QString::fromStdString(clip.id().toString())},
+        {QStringLiteral("start"), clip.start().seconds()},
+        {QStringLiteral("duration"), clip.duration().seconds()},
+        {QStringLiteral("sourceIn"), clip.sourceIn().seconds()},
+        {QStringLiteral("sourceOut"), clip.sourceOut().seconds()}
+    };
+}
+
+} // namespace
 
 QJsonObject EditorApi::inspect(const ccos::project::Project& project) {
     QJsonObject out;
@@ -52,6 +84,7 @@ QJsonObject EditorApi::hardwareCapabilities(const QString& ffmpegExecutable) {
 
     return QJsonObject{
         {QStringLiteral("ok"), true},
+        {QStringLiteral("available"), !capabilities.encoders.isEmpty()},
         {QStringLiteral("encoders"), encoders},
         {QStringLiteral("hasNvidia"), capabilities.hasNvidia},
         {QStringLiteral("hasIntel"), capabilities.hasIntel},
@@ -94,6 +127,61 @@ QJsonObject EditorApi::command(ccos::project::Project& project, const QJsonObjec
     if (operation == QStringLiteral("export_presets") || operation == QStringLiteral("presets")) {
         return exportPresets();
     }
+
+    if (operation == QStringLiteral("timeline_slip") || operation == QStringLiteral("slip")) {
+        int trackIndex = -1;
+        int clipIndex = -1;
+        QString parseError;
+        if (!parseNonNegativeIndex(request, QStringLiteral("trackIndex"), &trackIndex, &parseError) ||
+            !parseNonNegativeIndex(request, QStringLiteral("clipIndex"), &clipIndex, &parseError)) {
+            return QJsonObject{{QStringLiteral("ok"), false}, {QStringLiteral("error"), parseError}};
+        }
+        if (!request.contains(QStringLiteral("sourceDeltaMs")) || !request.value(QStringLiteral("sourceDeltaMs")).isDouble()) {
+            return QJsonObject{{QStringLiteral("ok"), false}, {QStringLiteral("error"), QStringLiteral("sourceDeltaMs is required and must be a number")}};
+        }
+        const auto& tracks = project.timeline().tracks();
+        if (trackIndex >= static_cast<int>(tracks.size())) {
+            return QJsonObject{{QStringLiteral("ok"), false}, {QStringLiteral("error"), QStringLiteral("trackIndex is out of range")}};
+        }
+        auto& track = project.timeline().tracks()[static_cast<std::size_t>(trackIndex)];
+        if (clipIndex >= static_cast<int>(track.clips().size())) {
+            return QJsonObject{{QStringLiteral("ok"), false}, {QStringLiteral("error"), QStringLiteral("clipIndex is out of range")}};
+        }
+        const double deltaMs = request.value(QStringLiteral("sourceDeltaMs")).toDouble();
+        if (!std::isfinite(deltaMs) || deltaMs < static_cast<double>(std::numeric_limits<qint64>::min()) ||
+            deltaMs > static_cast<double>(std::numeric_limits<qint64>::max())) {
+            return QJsonObject{{QStringLiteral("ok"), false}, {QStringLiteral("error"), QStringLiteral("sourceDeltaMs is outside supported bounds")}};
+        }
+        const auto delta = ccos::core::Time::fromSeconds(deltaMs / 1000.0);
+        if (!ccos::timeline::TimelineEditor::slipClip(track, static_cast<std::size_t>(clipIndex), delta)) {
+            return QJsonObject{{QStringLiteral("ok"), false}, {QStringLiteral("error"), QStringLiteral("slip operation rejected by timeline invariants")}};
+        }
+        return editResult(track, clipIndex);
+    }
+
+    if (operation == QStringLiteral("timeline_ripple_delete") || operation == QStringLiteral("ripple_delete")) {
+        int trackIndex = -1;
+        int clipIndex = -1;
+        QString parseError;
+        if (!parseNonNegativeIndex(request, QStringLiteral("trackIndex"), &trackIndex, &parseError) ||
+            !parseNonNegativeIndex(request, QStringLiteral("clipIndex"), &clipIndex, &parseError)) {
+            return QJsonObject{{QStringLiteral("ok"), false}, {QStringLiteral("error"), parseError}};
+        }
+        auto& tracks = project.timeline().tracks();
+        if (trackIndex >= static_cast<int>(tracks.size())) {
+            return QJsonObject{{QStringLiteral("ok"), false}, {QStringLiteral("error"), QStringLiteral("trackIndex is out of range")}};
+        }
+        auto& track = tracks[static_cast<std::size_t>(trackIndex)];
+        if (clipIndex >= static_cast<int>(track.clips().size())) {
+            return QJsonObject{{QStringLiteral("ok"), false}, {QStringLiteral("error"), QStringLiteral("clipIndex is out of range")}};
+        }
+        if (!ccos::timeline::TimelineEditor::rippleDelete(track, static_cast<std::size_t>(clipIndex))) {
+            return QJsonObject{{QStringLiteral("ok"), false}, {QStringLiteral("error"), QStringLiteral("ripple delete was rejected by timeline invariants")}};
+        }
+        return QJsonObject{{QStringLiteral("ok"), true}, {QStringLiteral("track"), track.name()},
+                           {QStringLiteral("remainingClips"), static_cast<int>(track.clips().size())}};
+    }
+
     if (operation == QStringLiteral("set_project_name")) {
         const QString name = request.value(QStringLiteral("name")).toString().trimmed();
         if (name.isEmpty()) return QJsonObject{{QStringLiteral("ok"), false}, {QStringLiteral("error"), QStringLiteral("name is required")}};
