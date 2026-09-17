@@ -54,7 +54,24 @@ FetchContent_Declare(
     GIT_SHALLOW TRUE
 )
 
-FetchContent_MakeAvailable(nlohmann_json fmt spdlog taskflow magic_enum cpp_httplib)
+# Header-only / low-overhead math and configuration libraries used by future
+# GPU/render and project-settings modules.
+FetchContent_Declare(
+    glm
+    GIT_REPOSITORY https://github.com/g-truc/glm.git
+    GIT_TAG 1.0.3
+    GIT_SHALLOW TRUE
+)
+
+FetchContent_Declare(
+    tomlplusplus
+    GIT_REPOSITORY https://github.com/marzer/tomlplusplus.git
+    GIT_TAG v3.4.0
+    GIT_SHALLOW TRUE
+)
+
+FetchContent_MakeAvailable(
+    nlohmann_json fmt spdlog taskflow magic_enum cpp_httplib glm tomlplusplus)
 
 if(NOT TARGET ccos_mit_foundation)
     add_library(ccos_mit_foundation INTERFACE)
@@ -62,6 +79,8 @@ if(NOT TARGET ccos_mit_foundation)
         nlohmann_json::nlohmann_json
         fmt::fmt
         spdlog::spdlog
+        glm::glm
+        tomlplusplus::tomlplusplus
     )
     target_include_directories(ccos_mit_foundation INTERFACE
         ${magic_enum_SOURCE_DIR}/include
