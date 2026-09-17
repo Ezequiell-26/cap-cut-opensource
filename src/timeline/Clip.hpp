@@ -2,6 +2,7 @@
 #include "core/Time.hpp"
 #include "core/Uuid.hpp"
 #include "media/MediaAsset.hpp"
+#include <algorithm>
 #include <QStringList>
 
 namespace ccos::timeline {
