@@ -1,8 +1,9 @@
 #include "media/ProxyManager.hpp"
 #include "media/MediaCache.hpp"
-#include <QFileInfo>
-#include <QProcess>
+#include "core/ProcessRunner.hpp"
+
 #include <QDir>
+#include <QFileInfo>
 
 namespace ccos::media {
 namespace {
@@ -15,6 +16,7 @@ int heightFor(ProxyPreset p) {
     }
     return 540;
 }
+
 QString presetName(ProxyPreset p) {
     switch (p) {
     case ProxyPreset::Quarter: return QStringLiteral("proxy_q");
@@ -36,20 +38,36 @@ bool ProxyManager::createProxy(const MediaAsset& asset, const QString& outputPat
         if (error) *error = QStringLiteral("Proxy input and output paths are required");
         return false;
     }
+
     QDir().mkpath(QFileInfo(outputPath).absolutePath());
-    QProcess p;
     const QString vf = QStringLiteral("scale=-2:%1:flags=lanczos").arg(heightFor(preset));
-    p.start(executable, {QStringLiteral("-y"), QStringLiteral("-i"), asset.path(),
-                         QStringLiteral("-vf"), vf, QStringLiteral("-c:v"), QStringLiteral("libx264"),
-                         QStringLiteral("-preset"), QStringLiteral("veryfast"), QStringLiteral("-crf"), QStringLiteral("23"),
-                         QStringLiteral("-c:a"), QStringLiteral("aac"), QStringLiteral("-b:a"), QStringLiteral("128k"),
-                         outputPath});
-    if (!p.waitForStarted(3000)) {
-        if (error) *error = QStringLiteral("Unable to start ffmpeg for proxy: %1").arg(p.errorString());
+
+    ccos::core::ProcessRunner runner;
+    ccos::core::ProcessConfig config;
+    config.executable = executable;
+    config.arguments = {
+        QStringLiteral("-y"), QStringLiteral("-i"), asset.path(),
+        QStringLiteral("-vf"), vf,
+        QStringLiteral("-c:v"), QStringLiteral("libx264"),
+        QStringLiteral("-preset"), QStringLiteral("veryfast"),
+        QStringLiteral("-crf"), QStringLiteral("23"),
+        QStringLiteral("-c:a"), QStringLiteral("aac"),
+        QStringLiteral("-b:a"), QStringLiteral("128k"),
+        outputPath
+    };
+    config.timeout = std::chrono::minutes(30);
+    config.startupTimeout = std::chrono::seconds(5);
+    config.maxOutputSize = 16 * 1024 * 1024;
+    config.riskLevel = ccos::core::ProcessConfig::RiskLevel::High;
+
+    const auto result = runner.executeSync(config);
+    if (!result.isSuccess()) {
+        if (error) *error = result.errorMessage();
         return false;
     }
-    if (!p.waitForFinished(-1) || p.exitStatus() != QProcess::NormalExit || p.exitCode() != 0) {
-        if (error) *error = QString::fromLocal8Bit(p.readAllStandardError());
+
+    if (!QFileInfo::exists(outputPath) || QFileInfo(outputPath).size() <= 0) {
+        if (error) *error = QStringLiteral("FFmpeg completed without producing a proxy file");
         return false;
     }
     return true;
