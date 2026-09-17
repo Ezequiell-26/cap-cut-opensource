@@ -7,6 +7,7 @@ Clip::Clip(const ccos::media::MediaAsset& asset) : assetId_(asset.id()) {
     sourceIn_ = {};
     sourceOut_ = duration_;
 }
+Clip::Clip(ccos::core::Uuid id, ccos::core::Uuid assetId) : id_(std::move(id)), assetId_(std::move(assetId)) {}
 
 void Clip::setSourceRange(ccos::core::Time in, ccos::core::Time out) noexcept {
     if (out < in) return;
