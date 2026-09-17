@@ -4,6 +4,7 @@
 #include "timeline/Track.hpp"
 #include <algorithm>
 #include <cstddef>
+#include <cmath>
 #include <optional>
 #include <utility>
 #include <vector>
