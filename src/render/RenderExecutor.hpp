@@ -3,6 +3,7 @@
 #include "render/ExportSettings.hpp"
 #include <QObject>
 #include <QProcess>
+#include <QTimer>
 
 namespace ccos::render {
 class RenderExecutor final : public QObject {
@@ -20,6 +21,14 @@ Q_SIGNALS:
     void finished(bool success, const QString& error);
 
 private:
+    static constexpr int kStartupTimeoutMs = 3000;
+    static constexpr int kTotalTimeoutMs = 6 * 60 * 60 * 1000;
+    static constexpr qsizetype kDiagnosticLimit = 256 * 1024;
+
+    void appendDiagnostic(const QString& text);
+
     QProcess process_;
+    QTimer timeoutTimer_;
+    QByteArray diagnosticBuffer_;
 };
 }
