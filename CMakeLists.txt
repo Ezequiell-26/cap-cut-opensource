@@ -27,7 +27,7 @@ set(CMAKE_AUTORCC ON)
 include(GNUInstallDirs)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/CCOSMitDependencies.cmake)
 
-find_package(Qt6 6.4 REQUIRED COMPONENTS Core Gui Network Widgets Multimedia MultimediaWidgets Svg Concurrent)
+find_package(Qt6 6.4 REQUIRED COMPONENTS Core Gui Network Widgets Multimedia MultimediaWidgets Concurrent)
 
 set(CCOS_SOURCES
     src/api/EditorApi.cpp
@@ -121,7 +121,6 @@ target_link_libraries(ccos_core PUBLIC
     Qt6::Core
     Qt6::Gui
     Qt6::Network
-    Qt6::Svg
     Qt6::Concurrent
 )
 
