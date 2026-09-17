@@ -1,6 +1,7 @@
 include(FetchContent)
 
 option(CCOS_ENABLE_MIT_FOUNDATION "Fetch the curated MIT-licensed C++ foundation stack" ON)
+option(CCOS_ENABLE_MIT_MEDIA_3D "Fetch optional MIT C++ libraries for 3D/motion-graphics asset processing" OFF)
 option(CCOS_ENABLE_MINIAUDIO "Make miniaudio available to optional audio device backends" OFF)
 option(CCOS_ENABLE_ONNXRUNTIME "Enable the optional ONNX Runtime integration" OFF)
 
@@ -54,8 +55,6 @@ FetchContent_Declare(
     GIT_SHALLOW TRUE
 )
 
-# Header-only / low-overhead math and configuration libraries used by future
-# GPU/render and project-settings modules.
 FetchContent_Declare(
     glm
     GIT_REPOSITORY https://github.com/g-truc/glm.git
@@ -87,6 +86,30 @@ if(NOT TARGET ccos_mit_foundation)
         ${taskflow_SOURCE_DIR}
         ${cpp_httplib_SOURCE_DIR}
     )
+endif()
+
+if(CCOS_ENABLE_MIT_MEDIA_3D)
+    FetchContent_Declare(
+        entt
+        GIT_REPOSITORY https://github.com/skypjack/entt.git
+        GIT_TAG v4.0.0
+        GIT_SHALLOW TRUE
+    )
+    FetchContent_Declare(
+        meshoptimizer
+        GIT_REPOSITORY https://github.com/zeux/meshoptimizer.git
+        GIT_TAG v1.2
+        GIT_SHALLOW TRUE
+    )
+    FetchContent_MakeAvailable(entt meshoptimizer)
+
+    if(NOT TARGET ccos_mit_media_3d)
+        add_library(ccos_mit_media_3d INTERFACE)
+        target_include_directories(ccos_mit_media_3d INTERFACE
+            ${entt_SOURCE_DIR}/src
+            ${meshoptimizer_SOURCE_DIR}/src
+        )
+    endif()
 endif()
 
 if(CCOS_ENABLE_MINIAUDIO)
