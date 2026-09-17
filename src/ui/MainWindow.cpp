@@ -7,6 +7,8 @@
 #include <QApplication>
 #include <QAudioOutput>
 #include <QCloseEvent>
+#include <QDir>
+#include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QFormLayout>
@@ -28,7 +30,6 @@
 #include <QUrl>
 #include <QVBoxLayout>
 #include <QVideoWidget>
-#include <QFile>
 
 namespace ccos::ui {
 
@@ -202,7 +203,7 @@ void MainWindow::buildMenus() {
 
 void MainWindow::newProject() {
     bool ok = false; const auto name = QInputDialog::getText(this, QStringLiteral("New Project"), QStringLiteral("Project name:"), QLineEdit::Normal, QStringLiteral("Untitled Project"), &ok);
-    if (!ok) return; player_->stop(); commandStack_.clear(); project_ = ccos::project::Project(name.trimmed().isEmpty() ? QStringLiteral("Untitled Project") : name.trimmed()); projectPath_.clear(); refreshMediaBin(); refreshTimeline(); statusLabel_->setText(QStringLiteral("New project created"));
+    if (!ok) return; player_->stop(); commandStack_.clear(); project_ = ccos::project::Project(name.trimmed().isEmpty() ? QStringLiteral("Untitled Project") : name.trimmed()); projectPath_.clear(); QFile::remove(recoveryPath()); refreshMediaBin(); refreshTimeline(); statusLabel_->setText(QStringLiteral("New project created"));
 }
 
 QString MainWindow::projectDialogPath(bool save) const {
@@ -236,7 +237,18 @@ void MainWindow::addSelectedToTimeline() {
 
 void MainWindow::undo() { if (commandStack_.undo()) { refreshTimeline(); statusLabel_->setText(QStringLiteral("Undo")); } }
 void MainWindow::redo() { if (commandStack_.redo()) { refreshTimeline(); statusLabel_->setText(QStringLiteral("Redo")); } }
-void MainWindow::updateSelection() { const auto row = mediaBin_->currentRow(); if (row >= 0 && row < static_cast<int>(project_.assets().size())) { const auto& asset = project_.assets()[static_cast<std::size_t>(row)]; previewLabel_->setText(asset.name()); loadPreviewSource(asset.path()); } }
+void MainWindow::autosave() {
+    QString error;
+    if (!ccos::project::ProjectSerializer::save(project_, recoveryPath(), &error)) {
+        statusLabel_->setText(QStringLiteral("Autosave failed: %1").arg(error));
+        return;
+    }
+    statusLabel_->setText(QStringLiteral("Autosaved"));
+}
+void MainWindow::updateSelection() {
+    const auto row = mediaBin_->currentRow();
+    if (row >= 0 && row < static_cast<int>(project_.assets().size())) { const auto& asset = project_.assets()[static_cast<std::size_t>(row)]; previewLabel_->setText(asset.name()); loadPreviewSource(asset.path()); }
+}
 void MainWindow::togglePlayback() { if (player_->playbackState() == QMediaPlayer::PlayingState) player_->pause(); else player_->play(); }
 void MainWindow::loadPreviewSource(const QString& path) { previewLabel_->setVisible(true); player_->setSource(QUrl::fromLocalFile(path)); statusLabel_->setText(QStringLiteral("Preview: %1").arg(QFileInfo(path).fileName())); }
 void MainWindow::refreshMediaBin() { mediaBin_->clear(); for (const auto& asset : project_.assets()) { auto* item = new QListWidgetItem(asset.name().isEmpty() ? asset.path() : asset.name()); item->setToolTip(asset.path()); mediaBin_->addItem(item); } }
