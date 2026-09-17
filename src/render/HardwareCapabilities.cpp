@@ -9,11 +9,12 @@ namespace ccos::render {
 
 QString HardwareCapabilities::preferredH264Encoder(bool hardwareAcceleration) const {
     if (!hardwareAcceleration) return QStringLiteral("libx264");
+    // These encoders can consume the software frames produced by the current
+    // CCOS FFmpeg pipeline without requiring a device/upload filter setup.
     if (supports(QStringLiteral("h264_nvenc"))) return QStringLiteral("h264_nvenc");
     if (supports(QStringLiteral("h264_qsv"))) return QStringLiteral("h264_qsv");
     if (supports(QStringLiteral("h264_amf"))) return QStringLiteral("h264_amf");
     if (supports(QStringLiteral("h264_videotoolbox"))) return QStringLiteral("h264_videotoolbox");
-    if (supports(QStringLiteral("h264_vaapi"))) return QStringLiteral("h264_vaapi");
     return QStringLiteral("libx264");
 }
 
@@ -23,7 +24,6 @@ QString HardwareCapabilities::preferredHevcEncoder(bool hardwareAcceleration) co
     if (supports(QStringLiteral("hevc_qsv"))) return QStringLiteral("hevc_qsv");
     if (supports(QStringLiteral("hevc_amf"))) return QStringLiteral("hevc_amf");
     if (supports(QStringLiteral("hevc_videotoolbox"))) return QStringLiteral("hevc_videotoolbox");
-    if (supports(QStringLiteral("hevc_vaapi"))) return QStringLiteral("hevc_vaapi");
     return QStringLiteral("libx265");
 }
 
