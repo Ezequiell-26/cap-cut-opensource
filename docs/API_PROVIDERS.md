@@ -54,9 +54,32 @@ Existing provider in `AssetsApi`. Requires an access key. Follow current API and
 
 `PremiumStockApi` contains provider-specific adapters for the project's existing stock/media sources. These are external-provider integrations rather than software dependencies; each provider's API and content terms must be followed.
 
+## Cultural / open-access collections
+
+### Internet Archive
+
+Implemented by `CulturalMediaApi::searchInternetArchive` using the Advanced Search JSON API. Search responses are converted to bounded `CreativeMediaItem` records with an archive details URL and download-directory URL. The item page remains the authoritative place to review the individual item's rights statement.
+
+### Smithsonian Open Access
+
+Implemented by `CulturalMediaApi::searchSmithsonian`. The endpoint uses the Smithsonian public API hosted on api.data.gov and requires the user's API key. CCOS imports available record IDs, titles and media URLs while marking the rights field for verification; Smithsonian states that public-domain objects can provide media, while restricted objects may expose metadata without a media file.
+
+### The Met Open Access
+
+Implemented by `CulturalMediaApi::searchMet`. The search endpoint is followed by a bounded sequence of object lookups (maximum 30) to obtain primary image URLs and artwork metadata. The Met's Open Access program provides corresponding high-resolution images for public-domain works; CCOS still retains the source record URL.
+
+### Europeana
+
+Implemented by `CulturalMediaApi::searchEuropeana` using the Search API JSON endpoint. Europeana requires an API key and provides search, record and IIIF APIs. CCOS preserves the record's rights string, source URL and preview URL.
+
+### Library of Congress
+
+Implemented by `CulturalMediaApi::searchLibraryOfCongress` using the JSON Photos API. CCOS preserves the catalog URL, title/contributor metadata and image URL when present. Rights remain item-specific and must be checked from the authoritative record.
+
 ## AI and utility APIs
 
 - OpenAI-compatible endpoints — local/self-hosted model servers and compatible hosted providers.
+- `LlamaCppProvider` — local llama.cpp `llama-server` profile using the existing OpenAI-compatible transport, defaulting to loopback `http://127.0.0.1:8080/v1`.
 - Hugging Face — optional inference services; token/configuration supplied by the user.
 - Whisper local adapter — local whisper.cpp executable, invoked through `ProcessRunner` with a bounded timeout.
 - LibreTranslate — translation provider; deployment-specific authentication and limits apply.
@@ -75,6 +98,10 @@ Available routes:
 
 The API is diagnostics/job-control focused and does not expose direct `Project`/`Timeline` mutation. An optional Bearer token can be configured for local automation clients.
 
+## Machine-readable provider catalog
+
+`EditorApi::culturalMediaProviders()` and the command aliases `cultural_media_providers` / `open_media_providers` expose the cultural provider list, expected authentication mode, supported media class and rights reminder to automation agents.
+
 ## External-provider safety policy
 
 All new HTTP integrations must:
@@ -91,4 +118,4 @@ All new HTTP integrations must:
 
 ## Important distinction
 
-The repository's MIT dependency policy applies to software dependencies. Media returned by Openverse, Wikimedia Commons, Freesound, NASA or other sources remains subject to its item-level license and provider terms.
+The repository's MIT dependency policy applies to software dependencies. Media returned by Openverse, Wikimedia Commons, Freesound, NASA, Internet Archive, Smithsonian, The Met, Europeana, Library of Congress or other sources remains subject to its item-level license and provider terms.
