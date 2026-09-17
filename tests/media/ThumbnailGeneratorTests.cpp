@@ -1,7 +1,9 @@
 #include "media/ThumbnailGenerator.hpp"
+#include "media/MediaCache.hpp"
 
 #include <gtest/gtest.h>
 
+#include <QTemporaryDir>
 #include <QStringList>
 
 namespace {
@@ -55,7 +57,9 @@ TEST(ThumbnailGeneratorTests, RejectsSourceOutputCollision) {
 
 TEST(ThumbnailGeneratorTests, GeneratesStableCachePathsForSameRequest) {
     const auto asset = makeAsset();
-    ccos::media::MediaCache cache(QStringLiteral("/tmp/ccos-test-cache"));
+    QTemporaryDir tempDir;
+    ASSERT_TRUE(tempDir.isValid());
+    ccos::media::MediaCache cache(tempDir.path());
 
     const QString first = ccos::media::ThumbnailGenerator::thumbnailPath(cache, asset, 250, 320, 180);
     const QString second = ccos::media::ThumbnailGenerator::thumbnailPath(cache, asset, 250, 320, 180);
@@ -65,4 +69,5 @@ TEST(ThumbnailGeneratorTests, GeneratesStableCachePathsForSameRequest) {
     EXPECT_EQ(first, second);
     EXPECT_NE(first, different);
     EXPECT_TRUE(first.endsWith(QStringLiteral(".jpg")));
+    EXPECT_TRUE(first.startsWith(tempDir.path()));
 }
