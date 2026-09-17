@@ -81,6 +81,7 @@ set(CCOS_SOURCES
     src/render/graph/RenderGraph.cpp
     src/render/RenderManager.cpp
     src/render/ExportSettings.cpp
+    src/render/ExportPresets.cpp
     src/render/FfmpegExporter.cpp
     src/render/TimelineExporter.cpp
     src/render/TimelineCompositor.cpp
@@ -201,6 +202,7 @@ if(CCOS_BUILD_TESTS)
         tests/media/MediaCacheTests.cpp
         tests/media/MediaImporterTests.cpp
         tests/media/MediaProbeTests.cpp
+        tests/media/ThumbnailGeneratorTests.cpp
         tests/effects/BuiltinEffectsTests.cpp
         tests/text/SubtitleParserTests.cpp
         tests/unit/core/JobSystemSmokeTest.cpp
@@ -209,10 +211,10 @@ if(CCOS_BUILD_TESTS)
         tests/unit/core/AIToolingSafetyTest.cpp
         tests/unit/render/RenderGraphSafetyTest.cpp
         tests/unit/render/ExportSettingsTest.cpp
+        tests/unit/render/ExportPresetsTest.cpp
         tests/unit/api/CreativeMediaApiTest.cpp
         tests/unit/core/MitFoundationSmokeTest.cpp
         tests/unit/api/NasaMediaApiTest.cpp
-        tests/media/ThumbnailGeneratorTests.cpp
     )
     if(CCOS_ENABLE_LOCAL_AUTOMATION_API)
         target_sources(ccos_tests PRIVATE tests/unit/api/LocalAutomationApiTest.cpp)
