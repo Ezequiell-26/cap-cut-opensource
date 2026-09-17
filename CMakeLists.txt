@@ -13,8 +13,8 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 option(CCOS_BUILD_TESTS "Build unit tests" ON)
 option(CCOS_BUILD_CLI "Build headless CLI/API runner" ON)
 option(CCOS_FETCH_GTEST "Fetch GoogleTest when it is not installed" ON)
-option(CCOS_ENABLE_MIT_FOUNDATION "Fetch the curated permissive C++ foundation stack" ON)
-option(CCOS_ENABLE_MIT_MEDIA_3D "Fetch optional permissive C++ libraries for 3D/motion-graphics asset processing" OFF)
+option(CCOS_ENABLE_MIT_FOUNDATION "Fetch the curated MIT-licensed C++ foundation stack" ON)
+option(CCOS_ENABLE_MIT_MEDIA_3D "Fetch optional MIT C++ libraries for 3D/motion-graphics asset processing" OFF)
 option(CCOS_ENABLE_MIT_TOOLING "Fetch optional MIT C++ tooling libraries for CLI/XML/test infrastructure" OFF)
 option(CCOS_ENABLE_MINIAUDIO "Make miniaudio available to optional audio device backends" OFF)
 option(CCOS_ENABLE_ONNXRUNTIME "Enable the optional ONNX Runtime integration" OFF)
@@ -36,6 +36,7 @@ set(CCOS_SOURCES
     src/api/EditorApi.cpp
     src/api/StockMediaApi.cpp
     src/api/CreativeMediaApi.cpp
+    src/api/NasaMediaApi.cpp
     src/api/LibreTranslateApi.cpp
     src/api/ColorApi.cpp
     src/api/OpenMeteoApi.cpp
@@ -99,7 +100,6 @@ endif()
 if(CCOS_ENABLE_EXPERIMENTAL_PREVIEW)
     list(APPEND CCOS_SOURCES src/preview/cache/FrameCache.cpp src/preview/pipeline/PreviewPipeline.cpp)
 endif()
-
 if(CCOS_ENABLE_RENDER_SCHEDULER)
     list(APPEND CCOS_SOURCES src/render/scheduler/RenderScheduler.cpp)
 endif()
@@ -112,7 +112,6 @@ endif()
 target_compile_features(ccos_core PUBLIC cxx_std_20)
 target_compile_definitions(ccos_core PUBLIC QT_NO_KEYWORDS)
 target_link_libraries(ccos_core PUBLIC Qt6::Core Qt6::Gui Qt6::Network Qt6::Concurrent)
-
 if(CCOS_ENABLE_MIT_FOUNDATION)
     target_link_libraries(ccos_core PUBLIC ccos_mit_foundation)
 endif()
@@ -182,7 +181,6 @@ if(CCOS_BUILD_TESTS)
     if(NOT TARGET GTest::gtest_main)
         message(FATAL_ERROR "GoogleTest is required. Install GTest or configure with -DCCOS_FETCH_GTEST=ON.")
     endif()
-
     add_executable(ccos_tests
         tests/core/TimeTests.cpp
         tests/core/CommandStackTests.cpp
@@ -203,6 +201,7 @@ if(CCOS_BUILD_TESTS)
         tests/unit/render/RenderGraphSafetyTest.cpp
         tests/unit/api/CreativeMediaApiTest.cpp
         tests/unit/core/MitFoundationSmokeTest.cpp
+        tests/unit/api/NasaMediaApiTest.cpp
     )
     if(CCOS_ENABLE_LOCAL_AUTOMATION_API)
         target_sources(ccos_tests PRIVATE tests/unit/api/LocalAutomationApiTest.cpp)
