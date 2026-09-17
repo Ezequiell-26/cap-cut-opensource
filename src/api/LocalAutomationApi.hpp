@@ -42,12 +42,13 @@ signals:
     void errorOccurred(const QString& message);
 
 private:
+    struct ServerHolder;
     void runServer();
 
     ccos::core::JobSystem* jobSystem_ = nullptr;
     quint16 port_ = 47999;
     QString bearerToken_;
-    std::unique_ptr<class httplibServerHolder> server_;
+    std::unique_ptr<ServerHolder> server_;
     std::thread serverThread_;
     std::atomic_bool running_{false};
     std::atomic_bool stopRequested_{false};
