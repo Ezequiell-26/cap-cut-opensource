@@ -1,24 +1,45 @@
-# Build output
-/build/
-/out/
-/cmake-build-*/
+```
+# Build artifacts
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dll
+*.exe
+*.out
+
+# CMake build directory
+build/
+cmake-build-*/
+
+# Dependencies
+vendor/
+
+# Logs
+*.log
+
+# Environment
+.env
+.env.local
+*.env.*
+
+# Editors
 .vscode/
 .idea/
+*.swp
+*.swo
 
-# Qt generated files
-moc_*
-uic_*
-rcc_*
-
-# Platform
+# OS
 .DS_Store
 Thumbs.db
 
-# Logs and local caches
-*.log
-.cache/
-ccos-cache/
+# Coverage
+coverage/
+htmlcov/
+.coverage
 
-# Local project files
-*.ccos
-*.ccos.bak*
+# Temporary files
+*.tmp
+*.temp
+```

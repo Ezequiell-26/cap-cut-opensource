@@ -66,9 +66,13 @@
 
 ## Phase 8 — Optional AI
 
-- [ ] local transcription
-- [ ] automatic captions
+- [x] local transcription adapter
+- [x] automatic captions
 - [ ] silence detection
-- [ ] optional local/remote AI provider abstraction
+- [x] optional local/remote AI provider abstraction
+- [x] stock media integration (Pexels, Pixabay)
+- [x] translation API (LibreTranslate)
+- [x] color palette generation
+- [x] weather data overlay (Open-Meteo)
 
 Mobile targets are considered only after the desktop core is stable.

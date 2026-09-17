@@ -22,6 +22,10 @@ find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Network Widgets Multimedia Mul
 
 add_library(ccos_core
     src/api/EditorApi.cpp
+    src/api/StockMediaApi.cpp
+    src/api/LibreTranslateApi.cpp
+    src/api/ColorApi.cpp
+    src/api/OpenMeteoApi.cpp
     src/core/Time.cpp
     src/core/Uuid.cpp
     src/core/CommandStack.cpp
