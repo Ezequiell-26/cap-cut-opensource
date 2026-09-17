@@ -69,8 +69,8 @@ CCOS source code is MIT. Dependencies remain under their own licenses. This inve
 | Zstandard | Project/cache compression | v1.5.7 | BSD | `CCOS_ENABLE_PRO_STORAGE` |
 | LZ4 | Fast compression/decompression | audited local version required | BSD-2-Clause | `CCOS_ENABLE_PRO_STORAGE` |
 | xxHash | Non-cryptographic hashing | audited local version required | BSD-2-Clause | `CCOS_ENABLE_PRO_STORAGE` |
-| libarchive | Archive/container access | BSD-like / multi-license tree | `CCOS_ENABLE_PRO_STORAGE` |
-| libzip | ZIP archive access | BSD-3-Clause | `CCOS_ENABLE_PRO_STORAGE` |
+| libarchive | Archive/container access | audited local version required | BSD-like / multi-license tree | `CCOS_ENABLE_PRO_STORAGE` |
+| libzip | ZIP archive access | audited local version required | BSD-3-Clause | `CCOS_ENABLE_PRO_STORAGE` |
 
 OpenTimelineIO is intentionally discovered from an audited local C++ installation instead of being fetched automatically. Its current CMake build exposes the `OTIO::opentimelineio` target. OpenColorIO is likewise discovered locally and is accepted only at version 2.5.2 or newer because 2.5.2 contains the upstream security fix for CVE-2026-42450.
 
