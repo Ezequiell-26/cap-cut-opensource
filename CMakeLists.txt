@@ -13,8 +13,9 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 option(CCOS_BUILD_TESTS "Build unit tests" ON)
 option(CCOS_BUILD_CLI "Build headless CLI/API runner" ON)
 option(CCOS_FETCH_GTEST "Fetch GoogleTest when it is not installed" ON)
-option(CCOS_ENABLE_MIT_FOUNDATION "Fetch the curated MIT-licensed C++ foundation stack" ON)
-option(CCOS_ENABLE_MIT_MEDIA_3D "Fetch optional MIT C++ libraries for 3D/motion-graphics asset processing" OFF)
+option(CCOS_ENABLE_MIT_FOUNDATION "Fetch the curated permissive C++ foundation stack" ON)
+option(CCOS_ENABLE_MIT_MEDIA_3D "Fetch optional permissive C++ libraries for 3D/motion-graphics asset processing" OFF)
+option(CCOS_ENABLE_MIT_TOOLING "Fetch optional MIT C++ tooling libraries for CLI/XML/test infrastructure" OFF)
 option(CCOS_ENABLE_MINIAUDIO "Make miniaudio available to optional audio device backends" OFF)
 option(CCOS_ENABLE_ONNXRUNTIME "Enable the optional ONNX Runtime integration" OFF)
 option(CCOS_ENABLE_LOCAL_AUTOMATION_API "Build the loopback-only automation API for agents" ON)
@@ -43,7 +44,6 @@ set(CCOS_SOURCES
     src/api/PremiumStockApi.cpp
     src/api/SocialMediaApi.cpp
     src/api/AccessibilityApi.cpp
-
     src/core/Time.cpp
     src/core/Uuid.cpp
     src/core/CommandStack.cpp
@@ -51,35 +51,28 @@ set(CCOS_SOURCES
     src/core/JobSystem.cpp
     src/core/AITooling.cpp
     src/core/PipelineGraph.cpp
-
     src/project/Project.cpp
     src/project/ProjectSerializer.cpp
     src/project/ProjectSchema.cpp
-
     src/media/MediaAsset.cpp
     src/media/MediaImporter.cpp
     src/media/MediaProbe.cpp
     src/media/MediaCache.cpp
     src/media/ProxyManager.cpp
     src/media/MediaDerivatives.cpp
-
     src/timeline/Clip.cpp
     src/timeline/Track.cpp
     src/timeline/Timeline.cpp
     src/timeline/TimelineEditor.cpp
     src/timeline/Keyframe.cpp
-
     src/audio/AudioMixer.cpp
     src/effects/BuiltinEffects.cpp
     src/transitions/Transition.cpp
     src/text/SubtitleParser.cpp
-
     src/ai/WhisperAdapter.cpp
     src/ai/OpenAICompatibleProvider.cpp
     src/ai/AdvancedAI.cpp
-
     src/plugins/PluginManager.cpp
-
     src/render/graph/RenderGraph.cpp
     src/render/RenderManager.cpp
     src/render/FfmpegExporter.cpp
@@ -104,10 +97,7 @@ if(CCOS_ENABLE_VISION)
 endif()
 
 if(CCOS_ENABLE_EXPERIMENTAL_PREVIEW)
-    list(APPEND CCOS_SOURCES
-        src/preview/cache/FrameCache.cpp
-        src/preview/pipeline/PreviewPipeline.cpp
-    )
+    list(APPEND CCOS_SOURCES src/preview/cache/FrameCache.cpp src/preview/pipeline/PreviewPipeline.cpp)
 endif()
 
 if(CCOS_ENABLE_RENDER_SCHEDULER)
@@ -115,52 +105,40 @@ if(CCOS_ENABLE_RENDER_SCHEDULER)
 endif()
 
 add_library(ccos_core ${CCOS_SOURCES})
-
-target_include_directories(ccos_core PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
-)
-
+target_include_directories(ccos_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 if(CCOS_ENABLE_VISION)
     target_include_directories(ccos_core PUBLIC ${OpenCV_INCLUDE_DIRS})
 endif()
-
 target_compile_features(ccos_core PUBLIC cxx_std_20)
 target_compile_definitions(ccos_core PUBLIC QT_NO_KEYWORDS)
-target_link_libraries(ccos_core PUBLIC
-    Qt6::Core
-    Qt6::Gui
-    Qt6::Network
-    Qt6::Concurrent
-)
+target_link_libraries(ccos_core PUBLIC Qt6::Core Qt6::Gui Qt6::Network Qt6::Concurrent)
 
 if(CCOS_ENABLE_MIT_FOUNDATION)
     target_link_libraries(ccos_core PUBLIC ccos_mit_foundation)
 endif()
-
 if(CCOS_ENABLE_MIT_MEDIA_3D AND TARGET ccos_mit_media_3d)
     target_link_libraries(ccos_core PUBLIC ccos_mit_media_3d)
     target_compile_definitions(ccos_core PUBLIC CCOS_HAS_MIT_MEDIA_3D)
 endif()
-
+if(CCOS_ENABLE_MIT_TOOLING AND TARGET ccos_mit_tooling)
+    target_link_libraries(ccos_core PUBLIC ccos_mit_tooling)
+    target_compile_definitions(ccos_core PUBLIC CCOS_HAS_MIT_TOOLING)
+endif()
 if(CCOS_ENABLE_MINIAUDIO AND TARGET ccos_miniaudio)
     target_link_libraries(ccos_core PUBLIC ccos_miniaudio)
     target_compile_definitions(ccos_core PUBLIC CCOS_HAS_MINIAUDIO)
 endif()
-
 if(CCOS_ENABLE_ONNXRUNTIME AND TARGET ccos_onnxruntime)
     target_link_libraries(ccos_core PUBLIC ccos_onnxruntime)
     target_compile_definitions(ccos_core PUBLIC CCOS_HAS_ONNXRUNTIME)
 endif()
-
 if(CCOS_ENABLE_LOCAL_AUTOMATION_API)
     target_compile_definitions(ccos_core PUBLIC CCOS_HAS_LOCAL_AUTOMATION_API)
 endif()
-
 if(CCOS_ENABLE_VISION)
     target_link_libraries(ccos_core PUBLIC ${OpenCV_LIBS} MediaPipe::mediapipe)
     target_compile_definitions(ccos_core PUBLIC CCOS_HAS_VISION)
 endif()
-
 if(CCOS_ENABLE_EXPERIMENTAL_PREVIEW)
     target_compile_definitions(ccos_core PUBLIC CCOS_HAS_EXPERIMENTAL_PREVIEW)
 endif()
@@ -171,14 +149,9 @@ else()
     target_compile_options(ccos_core PRIVATE -Wall -Wextra -Wpedantic -Wconversion -Wshadow)
 endif()
 
-add_executable(ccos_editor
-    src/app/main.cpp
-    src/ui/MainWindow.cpp
-    src/ui/MainWindow.hpp
-)
+add_executable(ccos_editor src/app/main.cpp src/ui/MainWindow.cpp src/ui/MainWindow.hpp)
 target_link_libraries(ccos_editor PRIVATE ccos_core Qt6::Widgets Qt6::Multimedia Qt6::MultimediaWidgets)
 target_include_directories(ccos_editor PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
-
 if(MSVC)
     target_compile_options(ccos_editor PRIVATE /W4 /permissive-)
 else()
@@ -198,17 +171,14 @@ install(FILES LICENSE DESTINATION ${CMAKE_INSTALL_DOCDIR} RENAME LICENSE.txt)
 if(CCOS_BUILD_TESTS)
     enable_testing()
     find_package(Qt6 6.4 REQUIRED COMPONENTS Test)
-
     find_package(GTest 1.14 QUIET)
     if(NOT GTest_FOUND AND CCOS_FETCH_GTEST)
         include(FetchContent)
         set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
         set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
-        FetchContent_Declare(googletest
-            URL https://github.com/google/googletest/archive/refs/tags/v1.14.0.tar.gz)
+        FetchContent_Declare(googletest URL https://github.com/google/googletest/archive/refs/tags/v1.14.0.tar.gz)
         FetchContent_MakeAvailable(googletest)
     endif()
-
     if(NOT TARGET GTest::gtest_main)
         message(FATAL_ERROR "GoogleTest is required. Install GTest or configure with -DCCOS_FETCH_GTEST=ON.")
     endif()
@@ -234,24 +204,16 @@ if(CCOS_BUILD_TESTS)
         tests/unit/api/CreativeMediaApiTest.cpp
         tests/unit/core/MitFoundationSmokeTest.cpp
     )
-
     if(CCOS_ENABLE_LOCAL_AUTOMATION_API)
         target_sources(ccos_tests PRIVATE tests/unit/api/LocalAutomationApiTest.cpp)
     endif()
-
-    target_link_libraries(ccos_tests PRIVATE
-        ccos_core
-        GTest::gtest_main
-        Qt6::Test
-    )
+    target_link_libraries(ccos_tests PRIVATE ccos_core GTest::gtest_main Qt6::Test)
     target_include_directories(ccos_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
-
     if(MSVC)
         target_compile_options(ccos_tests PRIVATE /W4 /permissive-)
     else()
         target_compile_options(ccos_tests PRIVATE -Wall -Wextra -Wpedantic -Wconversion -Wshadow)
     endif()
-
     include(GoogleTest)
     gtest_discover_tests(ccos_tests)
 endif()
