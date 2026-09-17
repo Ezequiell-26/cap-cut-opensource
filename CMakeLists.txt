@@ -27,6 +27,7 @@ add_library(ccos_core
     src/media/MediaAsset.cpp
     src/media/MediaImporter.cpp
     src/media/MediaProbe.cpp
+    src/media/MediaCache.cpp
     src/timeline/Clip.cpp
     src/timeline/Track.cpp
     src/timeline/Timeline.cpp
@@ -74,6 +75,7 @@ if(CCOS_BUILD_TESTS)
         tests/timeline/TimelineTests.cpp
         tests/timeline/TimelineEditorTests.cpp
         tests/timeline/KeyframeTests.cpp
+        tests/media/MediaCacheTests.cpp
     )
     target_link_libraries(ccos_tests PRIVATE ccos_core GTest::gtest_main)
     include(GoogleTest)
