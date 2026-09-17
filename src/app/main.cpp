@@ -15,6 +15,12 @@ int main(int argc, char* argv[]) {
     app.setFont(font);
 
     ccos::ui::MainWindow window;
+#ifdef __EMSCRIPTEN__
+    // In the browser, the native-style Qt window is mapped to the WebAssembly
+    // canvas. Maximizing here makes the existing desktop UI use the full viewport.
+    window.showMaximized();
+#else
     window.show();
+#endif
     return app.exec();
 }
