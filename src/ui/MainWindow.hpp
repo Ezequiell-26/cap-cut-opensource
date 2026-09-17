@@ -46,10 +46,12 @@ private:
     QString projectDialogPath(bool save) const;
     void loadPreviewSource(const QString& path);
     QString recoveryPath() const;
+    void setDirty(bool dirty);
 
     ccos::project::Project project_;
     ccos::core::CommandStack commandStack_;
     QString projectPath_;
+    bool dirty_ = false;
     QListWidget* mediaBin_ = nullptr;
     QTreeWidget* timeline_ = nullptr;
     QLabel* previewLabel_ = nullptr;
