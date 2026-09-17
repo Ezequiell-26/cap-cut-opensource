@@ -49,6 +49,7 @@ set(CCOS_SOURCES
     src/core/CommandStack.cpp
     src/core/ProcessRunner.cpp
     src/core/JobSystem.cpp
+    src/core/AITooling.cpp
     src/core/PipelineGraph.cpp
 
     src/project/Project.cpp
