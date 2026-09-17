@@ -14,7 +14,7 @@ int main(int argc, char* argv[]) {
     parser.addHelpOption();
     parser.addVersionOption();
     QCommandLineOption project({QStringLiteral("p"), QStringLiteral("project")}, QStringLiteral("CCOS project path"), QStringLiteral("file"));
-    QCommandLineOption operation({QStringLiteral("o"), QStringLiteral("op")}, QStringLiteral("inspect, validate, export, hardware or doctor"), QStringLiteral("operation"), QStringLiteral("inspect"));
+    QCommandLineOption operation({QStringLiteral("o"), QStringLiteral("op")}, QStringLiteral("inspect, validate, export, hardware, geocode or doctor"), QStringLiteral("operation"), QStringLiteral("inspect"));
     QCommandLineOption output(QStringLiteral("out"), QStringLiteral("Export output path"), QStringLiteral("file"));
     QCommandLineOption request(QStringLiteral("request"), QStringLiteral("JSON request object"), QStringLiteral("json"));
     QCommandLineOption query(QStringLiteral("query"), QStringLiteral("Location search query for geocode"), QStringLiteral("text"));
