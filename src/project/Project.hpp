@@ -1,8 +1,8 @@
 #pragma once
-#include "media/MediaAsset.hpp"
-#include "timeline/Timeline.hpp"
-#include "text/TextLayer.hpp"
 #include "core/Uuid.hpp"
+#include "media/MediaAsset.hpp"
+#include "text/TextLayer.hpp"
+#include "timeline/Timeline.hpp"
 #include <QString>
 #include <vector>
 
@@ -22,6 +22,8 @@ public:
     std::vector<ccos::text::TextLayer>& textLayers() noexcept { return textLayers_; }
     void addAsset(ccos::media::MediaAsset asset) { assets_.push_back(std::move(asset)); }
     void addTextLayer(ccos::text::TextLayer layer) { textLayers_.push_back(std::move(layer)); }
+    int relinkAsset(const ccos::core::Uuid& id, const QString& newPath);
+    [[nodiscard]] QStringList missingAssetPaths() const;
 private:
     ccos::core::Uuid id_;
     QString name_;
