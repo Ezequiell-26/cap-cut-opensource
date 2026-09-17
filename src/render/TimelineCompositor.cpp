@@ -69,7 +69,8 @@ bool TimelineCompositor::build(const ccos::project::Project& project,
                     while (s < 0.5) { af += QStringLiteral(",atempo=0.5"); s /= 0.5; }
                     af += QStringLiteral(",atempo=%1").arg(s,0,'f',6);
                 }
-                const double audioGain = std::clamp(clip.audioGain(), 0.0, 4.0);
+                const double rawAudioGain = clip.audioGain();
+                const double audioGain = std::isfinite(rawAudioGain) ? std::clamp(rawAudioGain, 0.0, 4.0) : 1.0;
                 if (clip.audioMuted()) {
                     af += QStringLiteral(",volume=0");
                 } else if (std::abs(audioGain - 1.0) > 0.0001) {
