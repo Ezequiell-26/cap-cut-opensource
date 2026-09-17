@@ -1,11 +1,12 @@
 #include "render/TextComposer.hpp"
 #include <QColor>
+#include <algorithm>
 
 namespace ccos::render {
 namespace {
 QString escapeText(QString text) {
     text.replace('\\', QStringLiteral("\\\\"));
-    text.replace(''', QStringLiteral("\\'"));
+    text.replace(QChar('\''), QStringLiteral("\\'"));
     text.replace(':', QStringLiteral("\\:"));
     text.replace(',', QStringLiteral("\\,"));
     text.replace('%', QStringLiteral("\\%"));
@@ -25,10 +26,12 @@ QString TextComposer::apply(const QString& inputLabel,
                             const ccos::text::TextLayer& layer,
                             const QString& outputLabel) {
     const QString text = escapeText(layer.text());
-    if (text.isEmpty()) return QStringLiteral("%1%2").arg(inputLabel, outputLabel);
-    const QString enable = QStringLiteral("between(t,%1,%2)").arg(layer.start().seconds(), 0, 'f', 6).arg((layer.start() + layer.duration()).seconds(), 0, 'f', 6);
-    const QString draw = QStringLiteral("[%1]drawtext=text='%2':fontcolor=%3:fontsize=%4:x=(w*%5)-text_w/2:y=(h*%6)-text_h/2:enable='%7'[%8]")
-        .arg(inputLabel.mid(1, inputLabel.size() - 2), text, safeColor(layer.style().color, layer.style().opacity), layer.style().size, layer.x(), layer.y(), enable, outputLabel);
-    return draw;
+    if (text.isEmpty()) return inputLabel + outputLabel;
+    const QString enable = QStringLiteral("between(t,%1,%2)")
+        .arg(layer.start().seconds(), 0, 'f', 6)
+        .arg((layer.start() + layer.duration()).seconds(), 0, 'f', 6);
+    return QStringLiteral("%1drawtext=text='%2':fontcolor=%3:fontsize=%4:x=(w*%5)-text_w/2:y=(h*%6)-text_h/2:enable='%7'[%8]")
+        .arg(inputLabel, text, safeColor(layer.style().color, layer.style().opacity), layer.style().size,
+             layer.x(), layer.y(), enable, outputLabel);
 }
 }
