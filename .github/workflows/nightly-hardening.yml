@@ -44,3 +44,40 @@ jobs:
         run: ctest --test-dir build --output-on-failure
       - name: Package smoke test
         run: cpack --config build/CPackConfig.cmake -G TGZ
+
+  sanitizers:
+    timeout-minutes: 60
+    runs-on: ubuntu-24.04
+    env:
+      CC: gcc
+      CXX: g++
+      CXXFLAGS: -fsanitize=address,undefined -fno-omit-frame-pointer
+      LDFLAGS: -fsanitize=address,undefined
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build build-essential
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.3'
+          host: linux
+          target: desktop
+          arch: linux_gcc_64
+          modules: 'qtmultimedia'
+          cache: true
+      - name: Configure sanitizer build
+        run: |
+          cmake -S . -B build-asan -G Ninja \
+            -DCCOS_BUILD_TESTS=ON \
+            -DCCOS_FETCH_GTEST=ON \
+            -DCMAKE_BUILD_TYPE=Debug
+      - name: Build sanitizer target
+        run: cmake --build build-asan --parallel
+      - name: Run sanitizer tests
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1:abort_on_error=1
+          UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
+        run: ctest --test-dir build-asan --output-on-failure
