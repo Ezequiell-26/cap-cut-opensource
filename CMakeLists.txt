@@ -17,7 +17,7 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTORCC ON)
 
-find_package(Qt6 6.5 REQUIRED COMPONENTS Widgets)
+find_package(Qt6 6.5 REQUIRED COMPONENTS Widgets Multimedia MultimediaWidgets)
 
 add_library(ccos_core
     src/core/Time.cpp
@@ -51,7 +51,7 @@ add_executable(ccos_editor
     src/ui/MainWindow.hpp
 )
 
-target_link_libraries(ccos_editor PRIVATE ccos_core Qt6::Widgets)
+target_link_libraries(ccos_editor PRIVATE ccos_core Qt6::Widgets Qt6::Multimedia Qt6::MultimediaWidgets)
 target_include_directories(ccos_editor PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
 if(MSVC)
