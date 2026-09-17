@@ -42,3 +42,24 @@ TEST(MediaCacheTests, ClearDoesNotDeleteUnrelatedFiles) {
     EXPECT_TRUE(QFile::exists(unrelatedPath));
     EXPECT_TRUE(cache.read(QStringLiteral("/media/a.mp4"), QStringLiteral("thumb-320"), QStringLiteral("bin")).isEmpty());
 }
+
+TEST(MediaCacheTests, ChangesSourceFingerprintWhenFileSizeChanges) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    ccos::media::MediaCache cache(dir.path());
+
+    const QString source = dir.filePath(QStringLiteral("source.mp4"));
+    QFile file(source);
+    ASSERT_TRUE(file.open(QIODevice::WriteOnly));
+    ASSERT_EQ(file.write(QByteArrayLiteral("first-version")), 13);
+    file.close();
+
+    const QString firstKey = cache.keyFor(source, QStringLiteral("thumbnail_320x180_0ms"));
+
+    ASSERT_TRUE(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
+    ASSERT_EQ(file.write(QByteArrayLiteral("a-different-second-version-with-more-bytes")), 42);
+    file.close();
+
+    const QString secondKey = cache.keyFor(source, QStringLiteral("thumbnail_320x180_0ms"));
+    EXPECT_NE(firstKey, secondKey);
+}
