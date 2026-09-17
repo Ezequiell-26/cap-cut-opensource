@@ -14,6 +14,8 @@ option(CCOS_BUILD_TESTS "Build unit tests" ON)
 option(CCOS_BUILD_CLI "Build headless CLI/API runner" ON)
 option(CCOS_FETCH_GTEST "Fetch GoogleTest when it is not installed" ON)
 option(CCOS_ENABLE_VISION "Build the optional OpenCV + MediaPipe vision subsystem" OFF)
+option(CCOS_ENABLE_EXPERIMENTAL_PREVIEW "Build the unfinished preview prototype" OFF)
+option(CCOS_ENABLE_RENDER_SCHEDULER "Build the legacy RenderQueue scheduler" OFF)
 
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC ON)
@@ -69,6 +71,7 @@ set(CCOS_SOURCES
 
     src/plugins/PluginManager.cpp
 
+    src/render/graph/RenderGraph.cpp
     src/render/RenderManager.cpp
     src/render/FfmpegExporter.cpp
     src/render/TimelineExporter.cpp
@@ -76,9 +79,6 @@ set(CCOS_SOURCES
     src/render/TextComposer.cpp
     src/render/HardwareCapabilities.cpp
     src/render/RenderExecutor.cpp
-
-    src/preview/cache/FrameCache.cpp
-    src/preview/pipeline/PreviewPipeline.cpp
 )
 
 if(CCOS_ENABLE_VISION)
@@ -88,6 +88,17 @@ if(CCOS_ENABLE_VISION)
         message(FATAL_ERROR "CCOS_ENABLE_VISION requires the MediaPipe::mediapipe CMake target")
     endif()
     list(APPEND CCOS_SOURCES src/vision/ComputerVisionApi.cpp)
+endif()
+
+if(CCOS_ENABLE_EXPERIMENTAL_PREVIEW)
+    list(APPEND CCOS_SOURCES
+        src/preview/cache/FrameCache.cpp
+        src/preview/pipeline/PreviewPipeline.cpp
+    )
+endif()
+
+if(CCOS_ENABLE_RENDER_SCHEDULER)
+    list(APPEND CCOS_SOURCES src/render/scheduler/RenderScheduler.cpp)
 endif()
 
 add_library(ccos_core ${CCOS_SOURCES})
@@ -114,6 +125,10 @@ target_link_libraries(ccos_core PUBLIC
 if(CCOS_ENABLE_VISION)
     target_link_libraries(ccos_core PUBLIC ${OpenCV_LIBS} MediaPipe::mediapipe)
     target_compile_definitions(ccos_core PUBLIC CCOS_HAS_VISION)
+endif()
+
+if(CCOS_ENABLE_EXPERIMENTAL_PREVIEW)
+    target_compile_definitions(ccos_core PUBLIC CCOS_HAS_EXPERIMENTAL_PREVIEW)
 endif()
 
 if(MSVC)
