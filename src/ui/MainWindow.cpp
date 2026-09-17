@@ -4,26 +4,26 @@
 #include "timeline/Clip.hpp"
 #include <QAction>
 #include <QApplication>
-#include <QDockWidget>
+#include <QAudioOutput>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QFormLayout>
 #include <QHBoxLayout>
 #include <QInputDialog>
+#include <QKeySequence>
 #include <QLabel>
+#include <QLineEdit>
 #include <QListWidget>
-#include <QMainWindow>
-#include <QMenuBar>
+#include <QMediaPlayer>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QSlider>
 #include <QSplitter>
 #include <QStatusBar>
-#include <QStyle>
-#include <QToolBar>
 #include <QTreeWidget>
+#include <QUrl>
 #include <QVBoxLayout>
-#include <QWidget>
+#include <QVideoWidget>
 
 namespace ccos::ui {
 
@@ -31,6 +31,10 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     setWindowTitle(QStringLiteral("CCOS — Open Source Video Editor"));
     resize(1440, 900);
     project_ = ccos::project::Project(QStringLiteral("Untitled Project"));
+    player_ = new QMediaPlayer(this);
+    audioOutput_ = new QAudioOutput(this);
+    player_->setAudioOutput(audioOutput_);
+    audioOutput_->setVolume(1.0);
     buildUi();
     buildMenus();
     refreshMediaBin();
@@ -60,24 +64,40 @@ void MainWindow::buildUi() {
 
     auto* center = new QWidget(split);
     auto* centerLayout = new QVBoxLayout(center);
-    previewLabel_ = new QLabel(QStringLiteral("PREVIEW\n\nImport a video and add it to the timeline"), center);
+    auto* videoWidget = new QVideoWidget(center);
+    videoWidget->setMinimumSize(640, 360);
+    videoWidget->setStyleSheet(QStringLiteral("background:#111; border:1px solid #2a2a2a;"));
+    player_->setVideoOutput(videoWidget);
+    previewLabel_ = new QLabel(QStringLiteral("Import a media file to begin"), videoWidget);
     previewLabel_->setAlignment(Qt::AlignCenter);
-    previewLabel_->setMinimumSize(640, 360);
-    previewLabel_->setStyleSheet(QStringLiteral("background:#111; color:#888; border:1px solid #2a2a2a; font-size:18px;"));
-    centerLayout->addWidget(previewLabel_, 1);
+    previewLabel_->setAttribute(Qt::WA_TransparentForMouseEvents);
+    previewLabel_->setStyleSheet(QStringLiteral("color:#888; font-size:18px; background:transparent;"));
+    auto* videoLayout = new QVBoxLayout(videoWidget);
+    videoLayout->setContentsMargins(0, 0, 0, 0);
+    videoLayout->addWidget(previewLabel_);
+    centerLayout->addWidget(videoWidget, 1);
+
     timelineSlider_ = new QSlider(Qt::Horizontal, center);
-    timelineSlider_->setRange(0, 1000);
+    timelineSlider_->setRange(0, 0);
     centerLayout->addWidget(timelineSlider_);
+    connect(timelineSlider_, &QSlider::valueChanged, player_, [this](int value) { player_->setPosition(value); });
+    connect(player_, &QMediaPlayer::durationChanged, this, [this](qint64 duration) { timelineSlider_->setRange(0, static_cast<int>(duration)); });
+    connect(player_, &QMediaPlayer::positionChanged, this, [this](qint64 position) { if (!timelineSlider_->isSliderDown()) timelineSlider_->setValue(static_cast<int>(position)); });
+
     auto* playback = new QHBoxLayout();
-    auto* back = new QPushButton(QStringLiteral("◀"), center);
-    auto* play = new QPushButton(QStringLiteral("▶"), center);
-    auto* forward = new QPushButton(QStringLiteral("▶|"), center);
+    auto* back = new QPushButton(QStringLiteral("−5s"), center);
+    auto* play = new QPushButton(QStringLiteral("▶ / ❚❚"), center);
+    auto* forward = new QPushButton(QStringLiteral("+5s"), center);
     playback->addStretch();
     playback->addWidget(back);
     playback->addWidget(play);
     playback->addWidget(forward);
     playback->addStretch();
     centerLayout->addLayout(playback);
+    connect(play, &QPushButton::clicked, this, &MainWindow::togglePlayback);
+    connect(back, &QPushButton::clicked, this, [this] { player_->setPosition(qMax<qint64>(0, player_->position() - 5000)); });
+    connect(forward, &QPushButton::clicked, this, [this] { player_->setPosition(qMin(player_->duration(), player_->position() + 5000)); });
+    connect(player_, &QMediaPlayer::errorOccurred, this, [this](QMediaPlayer::Error, const QString& message) { statusLabel_->setText(QStringLiteral("Playback error: %1").arg(message)); });
 
     auto* right = new QWidget(split);
     auto* rightLayout = new QFormLayout(right);
@@ -98,7 +118,6 @@ void MainWindow::buildUi() {
     split->setStretchFactor(2, 1);
 
     root->addWidget(split, 3);
-
     auto* timelineTitle = new QLabel(QStringLiteral("TIMELINE"), central);
     timelineTitle->setStyleSheet(QStringLiteral("font-weight:700; letter-spacing:1px;"));
     root->addWidget(timelineTitle);
@@ -147,12 +166,8 @@ void MainWindow::buildMenus() {
     auto* edit = menuBar()->addMenu(QStringLiteral("Edit"));
     edit->addAction(QStringLiteral("Undo"), QKeySequence::Undo);
     edit->addAction(QStringLiteral("Redo"), QKeySequence::Redo);
-
-    auto* view = menuBar()->addMenu(QStringLiteral("View"));
-    view->addAction(QStringLiteral("Reset Workspace"));
-
-    auto* exportMenu = menuBar()->addMenu(QStringLiteral("Export"));
-    exportMenu->addAction(QStringLiteral("Export Video…"));
+    menuBar()->addMenu(QStringLiteral("View"));
+    menuBar()->addMenu(QStringLiteral("Export"))->addAction(QStringLiteral("Export Video…"));
 
     auto* toolbar = addToolBar(QStringLiteral("Main"));
     toolbar->setMovable(false);
@@ -167,6 +182,7 @@ void MainWindow::newProject() {
     bool ok = false;
     const auto name = QInputDialog::getText(this, QStringLiteral("New Project"), QStringLiteral("Project name:"), QLineEdit::Normal, QStringLiteral("Untitled Project"), &ok);
     if (!ok) return;
+    player_->stop();
     project_ = ccos::project::Project(name.trimmed().isEmpty() ? QStringLiteral("Untitled Project") : name.trimmed());
     projectPath_.clear();
     refreshMediaBin();
@@ -175,9 +191,7 @@ void MainWindow::newProject() {
 }
 
 QString MainWindow::projectDialogPath(bool save) const {
-    if (save) {
-        return QFileDialog::getSaveFileName(const_cast<MainWindow*>(this), QStringLiteral("Save Project"), {}, QStringLiteral("CCOS Project (*.ccos);;All Files (*)"));
-    }
+    if (save) return QFileDialog::getSaveFileName(const_cast<MainWindow*>(this), QStringLiteral("Save Project"), {}, QStringLiteral("CCOS Project (*.ccos);;All Files (*)"));
     return QFileDialog::getOpenFileName(const_cast<MainWindow*>(this), QStringLiteral("Open Project"), {}, QStringLiteral("CCOS Project (*.ccos);;All Files (*)"));
 }
 
@@ -201,6 +215,7 @@ void MainWindow::openProject() {
         QMessageBox::critical(this, QStringLiteral("Open failed"), error);
         return;
     }
+    player_->stop();
     project_ = std::move(loaded);
     projectPath_ = path;
     refreshMediaBin();
@@ -227,7 +242,27 @@ void MainWindow::addSelectedToTimeline() {
     }
     project_.timeline().addClipToVideo(clip);
     refreshTimeline();
+    loadPreviewSource(project_.assets()[static_cast<std::size_t>(row)].path());
     statusLabel_->setText(QStringLiteral("Added clip to Video 1"));
+}
+
+void MainWindow::updateSelection() {
+    const auto row = mediaBin_->currentRow();
+    if (row >= 0 && row < static_cast<int>(project_.assets().size())) {
+        const auto& asset = project_.assets()[static_cast<std::size_t>(row)];
+        previewLabel_->setText(asset.name());
+        loadPreviewSource(asset.path());
+    }
+}
+
+void MainWindow::togglePlayback() {
+    if (player_->playbackState() == QMediaPlayer::PlayingState) player_->pause(); else player_->play();
+}
+
+void MainWindow::loadPreviewSource(const QString& path) {
+    previewLabel_->setVisible(true);
+    player_->setSource(QUrl::fromLocalFile(path));
+    statusLabel_->setText(QStringLiteral("Preview: %1").arg(QFileInfo(path).fileName()));
 }
 
 void MainWindow::refreshMediaBin() {
@@ -241,9 +276,7 @@ void MainWindow::refreshMediaBin() {
 
 void MainWindow::refreshTimeline() {
     timeline_->clear();
-    int trackIndex = 0;
     for (const auto& track : project_.timeline().tracks()) {
-        ++trackIndex;
         auto* trackItem = new QTreeWidgetItem(timeline_);
         trackItem->setText(0, QStringLiteral("%1  •  %2").arg(track.type() == ccos::timeline::TrackType::Video ? QStringLiteral("V") : QStringLiteral("A"), track.name()));
         for (const auto& clip : track.clips()) {
@@ -253,13 +286,6 @@ void MainWindow::refreshTimeline() {
             clipItem->setText(2, QString::fromStdString(clip.duration().toString()));
         }
         trackItem->setExpanded(true);
-    }
-}
-
-void MainWindow::updateSelection() {
-    const auto row = mediaBin_->currentRow();
-    if (row >= 0 && row < static_cast<int>(project_.assets().size())) {
-        previewLabel_->setText(QStringLiteral("SELECTED\n\n%1").arg(project_.assets()[static_cast<std::size_t>(row)].name()));
     }
 }
 
