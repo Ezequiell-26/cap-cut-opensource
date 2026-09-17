@@ -26,6 +26,16 @@ QString presetName(ProxyPreset p) {
     }
     return QStringLiteral("proxy_q");
 }
+
+bool samePath(const QString& left, const QString& right) {
+    const QString a = QDir::cleanPath(QFileInfo(left).absoluteFilePath());
+    const QString b = QDir::cleanPath(QFileInfo(right).absoluteFilePath());
+#ifdef Q_OS_WIN
+    return QString::compare(a, b, Qt::CaseInsensitive) == 0;
+#else
+    return a == b;
+#endif
+}
 }
 
 QString ProxyManager::proxyPath(const MediaCache& cache, const MediaAsset& asset, ProxyPreset preset) {
@@ -34,12 +44,25 @@ QString ProxyManager::proxyPath(const MediaCache& cache, const MediaAsset& asset
 
 bool ProxyManager::createProxy(const MediaAsset& asset, const QString& outputPath, ProxyPreset preset,
                                const QString& executable, QString* error) {
-    if (asset.path().isEmpty() || outputPath.isEmpty()) {
+    if (asset.path().isEmpty() || outputPath.trimmed().isEmpty()) {
         if (error) *error = QStringLiteral("Proxy input and output paths are required");
         return false;
     }
+    if (!ccos::core::ProcessRunner::validateExecutable(executable)) {
+        if (error) *error = QStringLiteral("FFmpeg executable not found or not executable: %1").arg(executable);
+        return false;
+    }
+    if (samePath(asset.path(), outputPath)) {
+        if (error) *error = QStringLiteral("Proxy output path must not overwrite the source media");
+        return false;
+    }
 
-    QDir().mkpath(QFileInfo(outputPath).absolutePath());
+    const QFileInfo outputInfo(outputPath);
+    if (!QDir().mkpath(outputInfo.absolutePath())) {
+        if (error) *error = QStringLiteral("Unable to create proxy directory: %1").arg(outputInfo.absolutePath());
+        return false;
+    }
+
     const QString vf = QStringLiteral("scale=-2:%1:flags=lanczos").arg(heightFor(preset));
 
     ccos::core::ProcessRunner runner;
@@ -59,6 +82,7 @@ bool ProxyManager::createProxy(const MediaAsset& asset, const QString& outputPat
     config.startupTimeout = std::chrono::seconds(5);
     config.maxOutputSize = 16 * 1024 * 1024;
     config.riskLevel = ccos::core::ProcessConfig::RiskLevel::High;
+    config.sanitizeEnvironment = true;
 
     const auto result = runner.executeSync(config);
     if (!result.isSuccess()) {
