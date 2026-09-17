@@ -2,6 +2,7 @@
 
 #include "render/ExportSettings.hpp"
 
+#include <QList>
 #include <QString>
 #include <QStringList>
 
