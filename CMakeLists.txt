@@ -24,6 +24,16 @@ option(CCOS_ENABLE_EXPERIMENTAL_PREVIEW "Build the unfinished preview prototype"
 option(CCOS_ENABLE_RENDER_SCHEDULER "Build the legacy RenderQueue scheduler" OFF)
 option(CCOS_ENABLE_OPENTIMELINEIO "Enable optional OpenTimelineIO C++ interchange support" OFF)
 option(CCOS_ENABLE_OPENCOLORIO "Enable optional OpenColorIO color-management support" OFF)
+option(CCOS_ENABLE_MIT_UI_EXTENSIONS "Enable Dear ImGui + ImGuizmo integration" OFF)
+option(CCOS_ENABLE_MIT_DIAGNOSTICS "Enable cpptrace crash/stack diagnostics" OFF)
+option(CCOS_ENABLE_MIT_STORAGE "Enable unordered_dense/date/foonathan memory helpers" OFF)
+option(CCOS_ENABLE_PRO_TEXT "Use locally audited FreeType + HarfBuzz + libass" OFF)
+option(CCOS_ENABLE_PRO_IMAGE_IO "Use locally audited OpenEXR + OpenImageIO + AVIF/WebP/JXL" OFF)
+option(CCOS_ENABLE_PRO_AUDIO_IO "Use locally audited RtAudio + RtMidi + libsamplerate + SpeexDSP" OFF)
+option(CCOS_ENABLE_PRO_CODECS "Use locally audited dav1d + SVT-AV1" OFF)
+option(CCOS_ENABLE_PRO_STORAGE "Use locally audited zstd + lz4 + xxHash + libarchive + libzip" OFF)
+option(CCOS_ENABLE_CULTURAL_MEDIA_API "Build open cultural-heritage media API adapters" ON)
+option(CCOS_ENABLE_LLAMA_SERVER_PROFILE "Enable the local llama.cpp/llama-server provider profile" ON)
 
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC ON)
@@ -32,6 +42,7 @@ set(CMAKE_AUTORCC ON)
 include(GNUInstallDirs)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/CCOSMitDependencies.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/CCOSProfessionalDependencies.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/CCOSExtendedOpenSource.cmake)
 
 find_package(Qt6 6.4 REQUIRED COMPONENTS Core Gui Network Widgets Multimedia MultimediaWidgets Concurrent)
 
@@ -40,6 +51,7 @@ set(CCOS_SOURCES
     src/api/StockMediaApi.cpp
     src/api/CreativeMediaApi.cpp
     src/api/NasaMediaApi.cpp
+    src/api/CulturalMediaApi.cpp
     src/api/LibreTranslateApi.cpp
     src/api/ColorApi.cpp
     src/api/OpenMeteoApi.cpp
@@ -78,6 +90,7 @@ set(CCOS_SOURCES
     src/text/SubtitleParser.cpp
     src/ai/WhisperAdapter.cpp
     src/ai/OpenAICompatibleProvider.cpp
+    src/ai/LlamaCppProvider.cpp
     src/ai/AdvancedAI.cpp
     src/plugins/PluginManager.cpp
     src/render/graph/RenderGraph.cpp
@@ -94,6 +107,10 @@ set(CCOS_SOURCES
 
 if(CCOS_ENABLE_LOCAL_AUTOMATION_API)
     list(APPEND CCOS_SOURCES src/api/LocalAutomationApi.cpp)
+endif()
+
+if(NOT CCOS_ENABLE_CULTURAL_MEDIA_API)
+    list(REMOVE_ITEM CCOS_SOURCES src/api/CulturalMediaApi.cpp)
 endif()
 
 if(CCOS_ENABLE_VISION)
@@ -122,6 +139,9 @@ target_link_libraries(ccos_core PUBLIC Qt6::Core Qt6::Gui Qt6::Network Qt6::Conc
 if(CCOS_ENABLE_MIT_FOUNDATION)
     target_link_libraries(ccos_core PUBLIC ccos_mit_foundation)
 endif()
+if(TARGET ccos_extended_open_source)
+    target_link_libraries(ccos_core PUBLIC ccos_extended_open_source)
+endif()
 if(CCOS_ENABLE_MIT_MEDIA_3D AND TARGET ccos_mit_media_3d)
     target_link_libraries(ccos_core PUBLIC ccos_mit_media_3d)
     target_compile_definitions(ccos_core PUBLIC CCOS_HAS_MIT_MEDIA_3D)
@@ -140,6 +160,12 @@ if(CCOS_ENABLE_ONNXRUNTIME AND TARGET ccos_onnxruntime)
 endif()
 if(CCOS_ENABLE_LOCAL_AUTOMATION_API)
     target_compile_definitions(ccos_core PUBLIC CCOS_HAS_LOCAL_AUTOMATION_API)
+endif()
+if(CCOS_ENABLE_CULTURAL_MEDIA_API)
+    target_compile_definitions(ccos_core PUBLIC CCOS_HAS_CULTURAL_MEDIA_API)
+endif()
+if(CCOS_ENABLE_LLAMA_SERVER_PROFILE)
+    target_compile_definitions(ccos_core PUBLIC CCOS_HAS_LLAMA_SERVER_PROFILE)
 endif()
 if(CCOS_ENABLE_VISION)
     target_link_libraries(ccos_core PUBLIC ${OpenCV_LIBS} MediaPipe::mediapipe)
@@ -220,6 +246,7 @@ if(CCOS_BUILD_TESTS)
         tests/unit/api/CreativeMediaApiTest.cpp
         tests/unit/core/MitFoundationSmokeTest.cpp
         tests/unit/api/NasaMediaApiTest.cpp
+        tests/unit/api/CulturalMediaApiTest.cpp
     )
     if(CCOS_ENABLE_LOCAL_AUTOMATION_API)
         target_sources(ccos_tests PRIVATE tests/unit/api/LocalAutomationApiTest.cpp)
