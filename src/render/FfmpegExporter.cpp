@@ -1,5 +1,5 @@
 #include "render/FfmpegExporter.hpp"
-#include <QProcess>
+#include "core/ProcessRunner.hpp"
 
 namespace ccos::render {
 
@@ -10,7 +10,6 @@ bool FfmpegExporter::exportAsset(const ccos::media::MediaAsset& asset, const QSt
         return false;
     }
 
-    QProcess process;
     QStringList args{
         QStringLiteral("-y"), QStringLiteral("-i"), asset.path(),
         QStringLiteral("-vf"), QStringLiteral("scale=%1:%2:force_original_aspect_ratio=decrease,pad=%1:%2:(ow-iw)/2:(oh-ih)/2")
@@ -23,16 +22,26 @@ bool FfmpegExporter::exportAsset(const ccos::media::MediaAsset& asset, const QSt
         outputPath
     };
 
-    process.start(executable, args);
-    if (!process.waitForStarted(3000)) {
-        if (error) *error = QStringLiteral("Unable to start ffmpeg: %1").arg(process.errorString());
+    ccos::core::ProcessRunner runner;
+    ccos::core::ProcessConfig config;
+    config.executable = executable;
+    config.arguments = args;
+    config.timeout = std::chrono::minutes(60);
+    config.startupTimeout = std::chrono::seconds(5);
+    config.maxOutputSize = 16 * 1024 * 1024;
+    config.riskLevel = ccos::core::ProcessConfig::RiskLevel::High;
+
+    const auto result = runner.executeSync(config);
+    if (!result.isSuccess()) {
+        if (error) *error = result.errorMessage();
         return false;
     }
-    if (!process.waitForFinished(-1) || process.exitStatus() != QProcess::NormalExit || process.exitCode() != 0) {
-        if (error) *error = QString::fromLocal8Bit(process.readAllStandardError());
-        if (error && error->isEmpty()) *error = QStringLiteral("ffmpeg export failed");
+
+    if (!QFileInfo::exists(outputPath) || QFileInfo(outputPath).size() <= 0) {
+        if (error) *error = QStringLiteral("FFmpeg completed without producing the output file");
         return false;
     }
+
     return true;
 }
 }
