@@ -47,6 +47,7 @@ private:
     void loadPreviewSource(const QString& path);
     QString recoveryPath() const;
     void setDirty(bool dirty);
+    bool confirmDocumentTransition();
 
     ccos::project::Project project_;
     ccos::core::CommandStack commandStack_;
