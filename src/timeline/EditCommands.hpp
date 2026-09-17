@@ -161,15 +161,28 @@ public:
     SetClipSpeedCommand(Track& track, std::size_t clipIndex, double speed)
         : track_(track), clipIndex_(clipIndex), newSpeed_(speed) {}
     bool execute() override {
-        if (executed_ || clipIndex_ >= track_.clips().size() || newSpeed_ <= 0.0) return false;
-        if (!originalSpeed_.has_value()) originalSpeed_ = track_.clips()[clipIndex_].speed();
-        track_.clips()[clipIndex_].setSpeed(newSpeed_);
+        if (executed_ || clipIndex_ >= track_.clips().size() ||
+            !std::isfinite(newSpeed_) || newSpeed_ <= 0.0) return false;
+        auto& clip = track_.clips()[clipIndex_];
+        if (!originalSpeed_.has_value()) {
+            originalSpeed_ = clip.speed();
+            originalDuration_ = clip.duration();
+        }
+        const double sourceDuration = (clip.sourceOut() - clip.sourceIn()).seconds();
+        if (!std::isfinite(sourceDuration) || sourceDuration <= 0.0) return false;
+        clip.setSpeed(newSpeed_);
+        const auto newDuration = ccos::core::Time::fromSeconds(sourceDuration / newSpeed_);
+        if (newDuration <= ccos::core::Time{}) return false;
+        clip.setDuration(newDuration);
         executed_ = true;
         return true;
     }
     void undo() override {
-        if (!executed_ || !originalSpeed_.has_value() || clipIndex_ >= track_.clips().size()) return;
-        track_.clips()[clipIndex_].setSpeed(*originalSpeed_);
+        if (!executed_ || !originalSpeed_.has_value() || !originalDuration_.has_value() ||
+            clipIndex_ >= track_.clips().size()) return;
+        auto& clip = track_.clips()[clipIndex_];
+        clip.setSpeed(*originalSpeed_);
+        clip.setDuration(*originalDuration_);
         executed_ = false;
     }
     QString name() const override { return QStringLiteral("Set Clip Speed"); }
@@ -178,6 +191,7 @@ private:
     std::size_t clipIndex_ = 0;
     double newSpeed_ = 1.0;
     std::optional<double> originalSpeed_;
+    std::optional<ccos::core::Time> originalDuration_;
     bool executed_ = false;
 };
 
