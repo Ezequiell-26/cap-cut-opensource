@@ -12,6 +12,12 @@ TEST(ExportSettingsTest, DefaultsAreValid) {
     EXPECT_TRUE(error.isEmpty());
 }
 
+TEST(ExportSettingsTest, AutomaticVideoCodecIsValid) {
+    ccos::render::ExportSettings settings;
+    settings.videoCodec = QStringLiteral("auto");
+    EXPECT_TRUE(settings.validate());
+}
+
 TEST(ExportSettingsTest, RejectsUnsafeNumericValues) {
     ccos::render::ExportSettings settings;
     settings.width = 1;
