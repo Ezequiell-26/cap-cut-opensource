@@ -2,6 +2,8 @@
 
 #include <gtest/gtest.h>
 
+#include <limits>
+
 using namespace ccos::render;
 
 TEST(RenderGraphSafetyTest, RejectsDuplicateNodeIds) {
@@ -25,7 +27,7 @@ TEST(RenderGraphSafetyTest, RejectsConnectionThatCreatesCycle) {
     graph.connect("a", "b");
     graph.connect("b", "c");
     EXPECT_THROW(graph.connect("c", "a"), CycleDetectedException);
-    EXPECT_EQ(graph.getNode("a")->inputs().size(), 0U);
+    EXPECT_TRUE(graph.getNode("a")->inputs().empty());
 }
 
 TEST(RenderGraphSafetyTest, DisconnectRemovesNodeInput) {
