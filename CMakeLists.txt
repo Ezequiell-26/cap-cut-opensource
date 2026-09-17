@@ -13,6 +13,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 option(CCOS_BUILD_TESTS "Build unit tests" ON)
 option(CCOS_BUILD_CLI "Build headless CLI/API runner" ON)
 option(CCOS_FETCH_GTEST "Fetch GoogleTest when it is not installed" ON)
+option(CCOS_ENABLE_VISION "Build the optional OpenCV + MediaPipe vision subsystem" OFF)
 
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC ON)
@@ -20,18 +21,10 @@ set(CMAKE_AUTORCC ON)
 
 include(GNUInstallDirs)
 
-find_package(Qt6 6.4 REQUIRED COMPONENTS Core Gui Network Widgets Multimedia MultimediaWidgets Svg Concurrent Test)
-find_package(OpenCV 4.8 REQUIRED COMPONENTS core imgproc video dnn imgcodecs)
-find_package(Eigen3 REQUIRED)
+find_package(Qt6 6.4 REQUIRED COMPONENTS Core Gui Network Widgets Multimedia MultimediaWidgets Svg Concurrent)
 find_package(ZLIB REQUIRED)
 
-# Optional packages for enhanced features.
-find_package(MediaPipe QUIET)
-find_package(Skia QUIET)
-find_package(RLottie QUIET)
-find_package(NanoSVG QUIET)
-
-add_library(ccos_core
+set(CCOS_SOURCES
     src/api/EditorApi.cpp
     src/api/StockMediaApi.cpp
     src/api/LibreTranslateApi.cpp
@@ -42,10 +35,6 @@ add_library(ccos_core
     src/api/PremiumStockApi.cpp
     src/api/SocialMediaApi.cpp
     src/api/AccessibilityApi.cpp
-
-    src/vision/ComputerVisionApi.cpp
-    src/audio_pro/AudioProcessingApi.cpp
-    src/graphics/GraphicsApi.cpp
 
     src/core/Time.cpp
     src/core/Uuid.cpp
@@ -89,10 +78,24 @@ add_library(ccos_core
     src/render/RenderExecutor.cpp
 )
 
+if(CCOS_ENABLE_VISION)
+    find_package(OpenCV 4.8 REQUIRED COMPONENTS core imgproc video dnn imgcodecs)
+    find_package(MediaPipe REQUIRED)
+    if(NOT TARGET MediaPipe::mediapipe)
+        message(FATAL_ERROR "CCOS_ENABLE_VISION requires the MediaPipe::mediapipe CMake target")
+    endif()
+    list(APPEND CCOS_SOURCES src/vision/ComputerVisionApi.cpp)
+endif()
+
+add_library(ccos_core ${CCOS_SOURCES})
+
 target_include_directories(ccos_core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src
-    ${EIGEN3_INCLUDE_DIR}
 )
+
+if(CCOS_ENABLE_VISION)
+    target_include_directories(ccos_core PUBLIC ${OpenCV_INCLUDE_DIRS})
+endif()
 
 target_compile_features(ccos_core PUBLIC cxx_std_20)
 target_compile_definitions(ccos_core PUBLIC QT_NO_KEYWORDS)
@@ -102,23 +105,12 @@ target_link_libraries(ccos_core PUBLIC
     Qt6::Network
     Qt6::Svg
     Qt6::Concurrent
-    ${OpenCV_LIBS}
     ZLIB::ZLIB
 )
 
-if(TARGET MediaPipe::mediapipe)
-    target_link_libraries(ccos_core PUBLIC MediaPipe::mediapipe)
-    target_compile_definitions(ccos_core PUBLIC CCOS_HAS_MEDIAPIPE)
-endif()
-
-if(TARGET Skia::skia)
-    target_link_libraries(ccos_core PUBLIC Skia::skia)
-    target_compile_definitions(ccos_core PUBLIC CCOS_HAS_SKIA)
-endif()
-
-if(TARGET RLottie::rlottie)
-    target_link_libraries(ccos_core PUBLIC RLottie::rlottie)
-    target_compile_definitions(ccos_core PUBLIC CCOS_HAS_RLOTTIE)
+if(CCOS_ENABLE_VISION)
+    target_link_libraries(ccos_core PUBLIC ${OpenCV_LIBS} MediaPipe::mediapipe)
+    target_compile_definitions(ccos_core PUBLIC CCOS_HAS_VISION)
 endif()
 
 if(MSVC)
@@ -153,6 +145,7 @@ install(FILES LICENSE DESTINATION ${CMAKE_INSTALL_DOCDIR} RENAME LICENSE.txt)
 
 if(CCOS_BUILD_TESTS)
     enable_testing()
+    find_package(Qt6 6.4 REQUIRED COMPONENTS Test)
 
     find_package(GTest 1.14 QUIET)
     if(NOT GTest_FOUND AND CCOS_FETCH_GTEST)
