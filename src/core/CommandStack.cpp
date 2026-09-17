@@ -28,15 +28,17 @@ bool CommandStack::execute(std::unique_ptr<Command> command) {
     }
 
     command->markExecuted();
-    undoStack_.push_back(std::move(command));
     redoStack_.clear();
 
-    if (undoStack_.size() > maxHistory_) {
-        undoStack_.erase(undoStack_.begin());
+    if (maxHistory_ > 0) {
+        undoStack_.push_back(std::move(command));
+        if (undoStack_.size() > maxHistory_) undoStack_.erase(undoStack_.begin());
+        qCInfo(ccos_core_command) << "Command executed:" << undoStack_.back()->name()
+                                  << "id:" << undoStack_.back()->id();
+    } else {
+        qCInfo(ccos_core_command) << "Command executed with history disabled:" << command->name()
+                                  << "id:" << command->id();
     }
-
-    qCInfo(ccos_core_command) << "Command executed:" << undoStack_.back()->name()
-                              << "id:" << undoStack_.back()->id();
     return true;
 }
 
@@ -62,17 +64,18 @@ bool CommandStack::redo() {
 
     if (!command->redo()) {
         qCWarning(ccos_core_command) << "Command redo failed:" << command->name();
-        // A failed redo must not silently destroy the user's history.
         redoStack_.push_back(std::move(command));
         return false;
     }
 
     command->markExecuted();
-    undoStack_.push_back(std::move(command));
-
-    if (undoStack_.size() > maxHistory_) undoStack_.erase(undoStack_.begin());
-
-    qCInfo(ccos_core_command) << "Command redone:" << undoStack_.back()->name();
+    if (maxHistory_ > 0) {
+        undoStack_.push_back(std::move(command));
+        if (undoStack_.size() > maxHistory_) undoStack_.erase(undoStack_.begin());
+        qCInfo(ccos_core_command) << "Command redone:" << undoStack_.back()->name();
+    } else {
+        qCInfo(ccos_core_command) << "Command redone with history disabled:" << command->name();
+    }
     return true;
 }
 
