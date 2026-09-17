@@ -13,6 +13,31 @@
 Q_LOGGING_CATEGORY(ccos_core_process, "ccos.core.process")
 
 namespace ccos::core {
+namespace {
+
+bool isCredentialEnvironmentName(const QString& name) {
+    const QString upper = name.trimmed().toUpper();
+    if (upper.isEmpty()) return false;
+
+    static const QStringList blockedFragments{
+        QStringLiteral("API_KEY"),
+        QStringLiteral("ACCESS_KEY"),
+        QStringLiteral("SECRET"),
+        QStringLiteral("TOKEN"),
+        QStringLiteral("PASSWORD"),
+        QStringLiteral("PASSWD"),
+        QStringLiteral("CREDENTIAL"),
+        QStringLiteral("PRIVATE_KEY"),
+        QStringLiteral("AUTHORIZATION")
+    };
+
+    for (const QString& fragment : blockedFragments) {
+        if (upper.contains(fragment)) return true;
+    }
+    return false;
+}
+
+} // namespace
 
 QString ProcessResult::errorMessage() const {
     if (!started) {
@@ -46,6 +71,15 @@ bool ProcessRunner::validateExecutable(const QString& executable) {
     }
 
     return !QStandardPaths::findExecutable(value).isEmpty();
+}
+
+QProcessEnvironment ProcessRunner::sanitizedEnvironment(const QProcessEnvironment& source) {
+    QProcessEnvironment sanitized;
+    const QStringList keys = source.keys();
+    for (const QString& key : keys) {
+        if (!isCredentialEnvironmentName(key)) sanitized.insert(key, source.value(key));
+    }
+    return sanitized;
 }
 
 void ProcessRunner::appendBounded(QByteArray& destination, const QByteArray& data, qint64 maxSize,
@@ -96,7 +130,14 @@ ProcessResult ProcessRunner::runProcess(const ProcessConfig& config, const Contr
         process.setWorkingDirectory(config.workingDirectory);
     }
 
-    if (!config.environment.isEmpty()) process.setProcessEnvironment(config.environment);
+    if (config.inheritEnvironment) {
+        const QProcessEnvironment environment = QProcessEnvironment::systemEnvironment();
+        process.setProcessEnvironment(config.sanitizeEnvironment ? sanitizedEnvironment(environment) : environment);
+    } else {
+        process.setProcessEnvironment(config.sanitizeEnvironment
+                                          ? sanitizedEnvironment(config.environment)
+                                          : config.environment);
+    }
 
     QElapsedTimer timer;
     timer.start();
