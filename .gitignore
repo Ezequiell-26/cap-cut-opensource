@@ -6,12 +6,16 @@
 *.lib
 *.so
 *.dll
+*.dylib
 *.exe
-*.out
 
-# CMake build directory
+# CMake build directories
 build/
 cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+Makefile
+compile_commands.json
 
 # Dependencies
 vendor/
@@ -22,24 +26,21 @@ vendor/
 # Environment
 .env
 .env.local
-*.env.*
+.env.*
 
-# Editors
+# Editor/IDE
 .vscode/
 .idea/
 *.swp
 *.swo
-
-# OS
-.DS_Store
-Thumbs.db
+*.tmp
 
 # Coverage
 coverage/
 htmlcov/
 .coverage
 
-# Temporary files
-*.tmp
-*.temp
+# OS
+.DS_Store
+Thumbs.db
 ```

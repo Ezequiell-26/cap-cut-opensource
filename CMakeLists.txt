@@ -26,6 +26,8 @@ add_library(ccos_core
     src/api/LibreTranslateApi.cpp
     src/api/ColorApi.cpp
     src/api/OpenMeteoApi.cpp
+    src/api/AudioApi.cpp
+    src/api/AssetsApi.cpp
     src/core/Time.cpp
     src/core/Uuid.cpp
     src/core/CommandStack.cpp
@@ -48,6 +50,7 @@ add_library(ccos_core
     src/text/SubtitleParser.cpp
     src/ai/WhisperAdapter.cpp
     src/ai/OpenAICompatibleProvider.cpp
+    src/ai/AdvancedAI.cpp
     src/plugins/PluginManager.cpp
     src/render/RenderManager.cpp
     src/render/FfmpegExporter.cpp
