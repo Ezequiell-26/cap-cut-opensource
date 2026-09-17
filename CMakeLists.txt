@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.24)
 
 project(CCOS
-    VERSION 0.6.0
+    VERSION 0.7.0
     DESCRIPTION "CCOS - Open Source Professional Video Editor with AI & ML"
     LANGUAGES CXX
 )
@@ -13,6 +13,9 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 option(CCOS_BUILD_TESTS "Build unit tests" ON)
 option(CCOS_BUILD_CLI "Build headless CLI/API runner" ON)
 option(CCOS_FETCH_GTEST "Fetch GoogleTest when it is not installed" ON)
+option(CCOS_ENABLE_MIT_FOUNDATION "Fetch the curated MIT-licensed C++ foundation stack" ON)
+option(CCOS_ENABLE_MINIAUDIO "Make miniaudio available to optional audio device backends" OFF)
+option(CCOS_ENABLE_ONNXRUNTIME "Enable the optional ONNX Runtime integration" OFF)
 option(CCOS_ENABLE_VISION "Build the optional OpenCV + MediaPipe vision subsystem" OFF)
 option(CCOS_ENABLE_EXPERIMENTAL_PREVIEW "Build the unfinished preview prototype" OFF)
 option(CCOS_ENABLE_RENDER_SCHEDULER "Build the legacy RenderQueue scheduler" OFF)
@@ -22,12 +25,14 @@ set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTORCC ON)
 
 include(GNUInstallDirs)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/CCOSMitDependencies.cmake)
 
 find_package(Qt6 6.4 REQUIRED COMPONENTS Core Gui Network Widgets Multimedia MultimediaWidgets Svg Concurrent)
 
 set(CCOS_SOURCES
     src/api/EditorApi.cpp
     src/api/StockMediaApi.cpp
+    src/api/CreativeMediaApi.cpp
     src/api/LibreTranslateApi.cpp
     src/api/ColorApi.cpp
     src/api/OpenMeteoApi.cpp
@@ -120,6 +125,20 @@ target_link_libraries(ccos_core PUBLIC
     Qt6::Concurrent
 )
 
+if(CCOS_ENABLE_MIT_FOUNDATION)
+    target_link_libraries(ccos_core PUBLIC ccos_mit_foundation)
+endif()
+
+if(CCOS_ENABLE_MINIAUDIO AND TARGET ccos_miniaudio)
+    target_link_libraries(ccos_core PUBLIC ccos_miniaudio)
+    target_compile_definitions(ccos_core PUBLIC CCOS_HAS_MINIAUDIO)
+endif()
+
+if(CCOS_ENABLE_ONNXRUNTIME AND TARGET ccos_onnxruntime)
+    target_link_libraries(ccos_core PUBLIC ccos_onnxruntime)
+    target_compile_definitions(ccos_core PUBLIC CCOS_HAS_ONNXRUNTIME)
+endif()
+
 if(CCOS_ENABLE_VISION)
     target_link_libraries(ccos_core PUBLIC ${OpenCV_LIBS} MediaPipe::mediapipe)
     target_compile_definitions(ccos_core PUBLIC CCOS_HAS_VISION)
@@ -192,6 +211,8 @@ if(CCOS_BUILD_TESTS)
         tests/unit/core/JobSystemSmokeTest.cpp
         tests/unit/core/ProcessRunnerTest.cpp
         tests/unit/render/RenderGraphSafetyTest.cpp
+        tests/unit/api/CreativeMediaApiTest.cpp
+        tests/unit/core/MitFoundationSmokeTest.cpp
     )
 
     target_link_libraries(ccos_tests PRIVATE
