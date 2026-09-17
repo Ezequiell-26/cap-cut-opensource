@@ -347,6 +347,9 @@ QJsonObject EditorApi::command(ccos::project::Project& project, const QJsonObjec
         if (!std::isfinite(gain) || gain < 0.0 || gain > 4.0) {
             return QJsonObject{{QStringLiteral("ok"), false}, {QStringLiteral("error"), QStringLiteral("gain must be between 0 and 4")}};
         }
+        if (request.contains(QStringLiteral("muted")) && !request.value(QStringLiteral("muted")).isBool()) {
+            return QJsonObject{{QStringLiteral("ok"), false}, {QStringLiteral("error"), QStringLiteral("muted must be boolean")}};
+        }
         const bool muted = request.value(QStringLiteral("muted")).toBool(false);
         auto& clip = track.clips()[static_cast<std::size_t>(clipIndex)];
         clip.setAudioGain(gain);
