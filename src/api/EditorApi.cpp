@@ -1,4 +1,5 @@
 #include "api/EditorApi.hpp"
+#include "api/CulturalMediaApi.hpp"
 #include "render/ExportPresets.hpp"
 #include "render/HardwareCapabilities.hpp"
 #include "render/TimelineExporter.hpp"
@@ -121,6 +122,39 @@ QJsonObject EditorApi::exportPresets() {
     return QJsonObject{{QStringLiteral("ok"), true}, {QStringLiteral("presets"), presets}};
 }
 
+QJsonObject EditorApi::culturalMediaProviders() {
+    return QJsonObject{
+        {QStringLiteral("ok"), true},
+        {QStringLiteral("providers"), QJsonArray{
+            QJsonObject{{QStringLiteral("id"), QStringLiteral("internet_archive")},
+                        {QStringLiteral("name"), QStringLiteral("Internet Archive")},
+                        {QStringLiteral("auth"), QStringLiteral("none")},
+                        {QStringLiteral("media"), QStringLiteral("movies,audio,image")},
+                        {QStringLiteral("rights"), QStringLiteral("item-specific")}},
+            QJsonObject{{QStringLiteral("id"), QStringLiteral("smithsonian_open_access")},
+                        {QStringLiteral("name"), QStringLiteral("Smithsonian Open Access")},
+                        {QStringLiteral("auth"), QStringLiteral("api_key")},
+                        {QStringLiteral("media"), QStringLiteral("image,3d")},
+                        {QStringLiteral("rights"), QStringLiteral("CC0 where explicitly marked; verify record")}},
+            QJsonObject{{QStringLiteral("id"), QStringLiteral("met_open_access")},
+                        {QStringLiteral("name"), QStringLiteral("The Met Open Access")},
+                        {QStringLiteral("auth"), QStringLiteral("none")},
+                        {QStringLiteral("media"), QStringLiteral("image")},
+                        {QStringLiteral("rights"), QStringLiteral("CC0/public domain image where provided")}},
+            QJsonObject{{QStringLiteral("id"), QStringLiteral("europeana")},
+                        {QStringLiteral("name"), QStringLiteral("Europeana")},
+                        {QStringLiteral("auth"), QStringLiteral("api_key")},
+                        {QStringLiteral("media"), QStringLiteral("image,audio,video,metadata")},
+                        {QStringLiteral("rights"), QStringLiteral("record-specific rights")}},
+            QJsonObject{{QStringLiteral("id"), QStringLiteral("library_of_congress")},
+                        {QStringLiteral("name"), QStringLiteral("Library of Congress")},
+                        {QStringLiteral("auth"), QStringLiteral("none")},
+                        {QStringLiteral("media"), QStringLiteral("image,video,audio,document")},
+                        {QStringLiteral("rights"), QStringLiteral("item-specific")}}
+        }}
+    };
+}
+
 QJsonObject EditorApi::command(ccos::project::Project& project, const QJsonObject& request, const QString& ffmpegExecutable) {
     const QString operation = request.value(QStringLiteral("op")).toString().trimmed().toLower();
     if (operation == QStringLiteral("inspect")) return inspect(project);
@@ -130,6 +164,9 @@ QJsonObject EditorApi::command(ccos::project::Project& project, const QJsonObjec
     }
     if (operation == QStringLiteral("export_presets") || operation == QStringLiteral("presets")) {
         return exportPresets();
+    }
+    if (operation == QStringLiteral("cultural_media_providers") || operation == QStringLiteral("open_media_providers")) {
+        return culturalMediaProviders();
     }
 
     if (operation == QStringLiteral("timeline_slip") || operation == QStringLiteral("slip")) {
