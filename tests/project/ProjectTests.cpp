@@ -7,7 +7,10 @@ TEST(ProjectTests, SavesAndLoadsProject) {
     QTemporaryDir dir;
     ASSERT_TRUE(dir.isValid());
     ccos::project::Project source(QStringLiteral("Demo"));
-    source.addAsset(ccos::media::MediaAsset(QStringLiteral("/tmp/demo.mp4")));
+    ccos::media::MediaAsset asset(QStringLiteral("/tmp/demo.mp4"));
+    asset.metadata().durationMs = 10000;
+    source.addAsset(asset);
+    source.timeline().addClipToVideo(ccos::timeline::Clip(source.assets().front()));
 
     const auto path = dir.filePath(QStringLiteral("demo.ccos"));
     QString error;
@@ -18,4 +21,7 @@ TEST(ProjectTests, SavesAndLoadsProject) {
     EXPECT_EQ(loaded.name(), QStringLiteral("Demo"));
     ASSERT_EQ(loaded.assets().size(), 1U);
     EXPECT_EQ(loaded.assets().front().path(), QStringLiteral("/tmp/demo.mp4"));
+    ASSERT_EQ(loaded.timeline().tracks().size(), 2U);
+    ASSERT_EQ(loaded.timeline().tracks().front().clips().size(), 1U);
+    EXPECT_EQ(loaded.timeline().tracks().front().clips().front().assetId(), loaded.assets().front().id());
 }
