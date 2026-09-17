@@ -2,6 +2,7 @@
 
 #include <QLoggingCategory>
 #include <QMetaObject>
+#include <QUuid>
 #include <QtConcurrent>
 
 #include <algorithm>
