@@ -19,6 +19,18 @@ Allowed ecosystem:
 
 Do not add JavaScript, TypeScript, Python, Rust, Go, Java, Kotlin, Swift or another runtime language to the editor.
 
+## Main branch policy
+
+`main` is the canonical integration branch and the source of truth for the project.
+
+- Every completed implementation change must land in `main` before the task is considered done.
+- Feature/fix/agent branches are temporary workspaces only; they must not retain unique completed work outside `main`.
+- Before starting new work, inspect `main` and base new work from the current `main` state.
+- After completing and verifying a change, integrate it into `main` promptly.
+- When multiple branches contain overlapping work, reconcile and integrate the useful changes into `main` rather than allowing parallel long-lived histories.
+- Historical branches may remain for traceability, but their unique commits must be fully represented in `main`.
+- Never claim a feature is complete while its only implementation exists on a non-`main` branch.
+
 ## Non-negotiable invariants
 
 1. Never rewrite Git history, force-push, delete `main`, or disable required checks.
@@ -41,12 +53,13 @@ Do not add JavaScript, TypeScript, Python, Rust, Go, Java, Kotlin, Swift or anot
 
 ## Required development loop
 
-DISCOVER -> SCOPE/RISK -> DESIGN -> IMPLEMENT -> TEST -> SECURITY REVIEW -> BUILD -> DIFF REVIEW -> DOCUMENT
+DISCOVER -> SCOPE/RISK -> DESIGN -> IMPLEMENT -> TEST -> SECURITY REVIEW -> BUILD -> DIFF REVIEW -> DOCUMENT -> INTEGRATE INTO MAIN
 
 Before editing:
 - Read the relevant skill and policy.
 - Inspect current `main` and affected files.
 - Identify invariants, interfaces and existing tests.
+- Confirm whether the requested functionality already exists on another branch and reconcile it instead of duplicating it.
 
 After editing:
 - Run the repository guard.
@@ -55,6 +68,7 @@ After editing:
 - Run CTest.
 - Run sanitizers/security checks when affected.
 - Review the final diff for unrelated changes, secrets and generated artifacts.
+- Integrate the verified work into `main` and verify the resulting `main` commit.
 
 ## Architecture boundaries
 
@@ -77,4 +91,4 @@ When uncertain:
 
 ## Definition of done
 
-A task is done only when implementation, tests, verification, documentation and known limitations are all explicit. Never claim a feature is complete merely because code exists or a build starts.
+A task is done only when implementation, tests, verification, documentation and known limitations are all explicit, and the completed change is present on `main`. Never claim a feature is complete merely because code exists or a build starts.
