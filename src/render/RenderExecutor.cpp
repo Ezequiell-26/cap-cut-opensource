@@ -3,6 +3,8 @@
 #include "render/HardwareCapabilities.hpp"
 #include "core/ProcessRunner.hpp"
 
+#include <QDir>
+#include <QFileInfo>
 #include <QProcessEnvironment>
 #include <QRegularExpression>
 
@@ -15,6 +17,16 @@ QString resolveVideoCodec(const QString& requested, const QString& executable) {
     const QString trimmed = requested.trimmed();
     if (trimmed != QStringLiteral("auto")) return trimmed;
     return HardwareCapabilitiesProbe::detect(executable).preferredH264Encoder(true);
+}
+
+bool samePath(const QString& left, const QString& right) {
+    const QString a = QDir::cleanPath(QFileInfo(left).absoluteFilePath());
+    const QString b = QDir::cleanPath(QFileInfo(right).absoluteFilePath());
+#ifdef Q_OS_WIN
+    return QString::compare(a, b, Qt::CaseInsensitive) == 0;
+#else
+    return a == b;
+#endif
 }
 
 } // namespace
@@ -106,6 +118,22 @@ bool RenderExecutor::start(const ccos::project::Project& project, const QString&
     QString audio;
     if (!TimelineCompositor::build(project, settings, inputs, filter, video, audio, &error)) {
         Q_EMIT finished(false, error);
+        return false;
+    }
+    if (inputs.isEmpty()) {
+        Q_EMIT finished(false, QStringLiteral("The timeline contains no media inputs"));
+        return false;
+    }
+    for (const auto& input : inputs) {
+        if (samePath(input, output)) {
+            Q_EMIT finished(false, QStringLiteral("Output path must not overwrite a timeline input"));
+            return false;
+        }
+    }
+
+    const QFileInfo outputInfo(output);
+    if (!QDir().mkpath(outputInfo.absolutePath())) {
+        Q_EMIT finished(false, QStringLiteral("Unable to create output directory: %1").arg(outputInfo.absolutePath()));
         return false;
     }
 
