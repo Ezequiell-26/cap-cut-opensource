@@ -12,10 +12,10 @@ permissions:
 
 env:
   QT_VERSION: '6.8.3'
-  EM_VERSION: '3.1.56'
   QT_WASM_ARCH: 'wasm_singlethread'
   QT_PREFIX: '${{ github.workspace }}/.qt'
-  EMSDK_ROOT: '${{ github.workspace }}/.emsdk'
+  EMSDK_PATH: '${{ github.workspace }}/.emsdk'
+  EM_VERSION: '3.1.56'
 
 concurrency:
   group: ccos-webassembly-${{ github.workflow }}-${{ github.ref }}
@@ -40,16 +40,16 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [ ! -d "$EMSDK_ROOT" ]; then
-            git clone --depth 1 --branch "$EM_VERSION" https://github.com/emscripten-core/emsdk.git "$EMSDK_ROOT"
+          if [ ! -d "$EMSDK_PATH" ]; then
+            git clone --depth 1 --branch "$EM_VERSION" https://github.com/emscripten-core/emsdk.git "$EMSDK_PATH"
           fi
-          "$EMSDK_ROOT/emsdk" install "$EM_VERSION"
-          "$EMSDK_ROOT/emsdk" activate "$EM_VERSION"
-          source "$EMSDK_ROOT/emsdk_env.sh"
-          echo "EMSDK=$EMSDK_ROOT" >> "$GITHUB_ENV"
-          echo "$EMSDK_ROOT" >> "$GITHUB_PATH"
-          echo "$EMSDK_ROOT/upstream/emscripten" >> "$GITHUB_PATH"
-          echo "EM_CACHE=$EMSDK_ROOT/upstream/emscripten/cache" >> "$GITHUB_ENV"
+          "$EMSDK_PATH/emsdk" install "$EM_VERSION"
+          "$EMSDK_PATH/emsdk" activate "$EM_VERSION"
+          source "$EMSDK_PATH/emsdk_env.sh"
+          echo "EMSDK=$EMSDK_PATH" >> "$GITHUB_ENV"
+          echo "$EMSDK_PATH" >> "$GITHUB_PATH"
+          echo "$EMSDK_PATH/upstream/emscripten" >> "$GITHUB_PATH"
+          echo "EM_CACHE=$EMSDK_PATH/upstream/emscripten/cache" >> "$GITHUB_ENV"
           emcc --version
 
       - name: Install Qt for WebAssembly
@@ -70,7 +70,6 @@ jobs:
         run: |
           set -euo pipefail
           test -f "$QT_ROOT_DIR/lib/cmake/Qt6/qt.toolchain.cmake"
-          test -x "$QT_ROOT_DIR/bin/qt-cmake" || test -x "$QT_ROOT_DIR/bin/qt-cmake.bat"
           test -n "${QT_HOST_PATH:-}"
           test -d "$QT_HOST_PATH"
           source "$EMSDK/emsdk_env.sh"
