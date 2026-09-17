@@ -30,6 +30,15 @@ CCOS source code is MIT. Dependencies remain under their own licenses. This inve
 | miniaudio | Optional audio device backend | Public Domain / MIT-0 | `CCOS_ENABLE_MINIAUDIO` |
 | ONNX Runtime | Local ML inference runtime | MIT at the repository level; execution providers may introduce additional licenses | `CCOS_ENABLE_ONNXRUNTIME` |
 
+## Optional professional integrations
+
+| Dependency | Purpose | Current upstream version observed | License | CMake option |
+|---|---|---|---|---|
+| OpenTimelineIO | C++ timeline/interchange model and serialization | v0.18.1 | Modified Apache 2.0 | `CCOS_ENABLE_OPENTIMELINEIO` |
+| OpenColorIO | Color management, LUT/config processing and GPU-capable transforms | v2.5.2 | BSD-3-Clause | `CCOS_ENABLE_OPENCOLORIO` |
+
+OpenTimelineIO is intentionally discovered from an audited local C++ installation instead of being fetched automatically. Its current CMake build exposes the `OTIO::opentimelineio` target. OpenColorIO is likewise discovered locally and is accepted only at version 2.5.2 or newer because 2.5.2 contains the upstream security fix for CVE-2026-42450.
+
 ## Policy
 
 1. Pin versions; do not consume floating branches in release builds.
@@ -38,4 +47,5 @@ CCOS source code is MIT. Dependencies remain under their own licenses. This inve
 4. Keep API/content licenses separate from software dependency licenses.
 5. Preserve attribution and provider terms when importing media.
 6. Do not claim an imported asset is MIT merely because its discovery API is free or open source.
-7. Run a release-time license scan against the final dependency graph.
+7. For optional professional integrations, require a local audited installation and a minimum supported security version before release.
+8. Run a release-time license scan against the final dependency graph.
