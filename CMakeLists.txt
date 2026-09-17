@@ -64,6 +64,7 @@ set(CCOS_SOURCES
     src/media/MediaCache.cpp
     src/media/ProxyManager.cpp
     src/media/MediaDerivatives.cpp
+    src/media/ThumbnailGenerator.cpp
     src/timeline/Clip.cpp
     src/timeline/Track.cpp
     src/timeline/Timeline.cpp
@@ -211,6 +212,7 @@ if(CCOS_BUILD_TESTS)
         tests/unit/api/CreativeMediaApiTest.cpp
         tests/unit/core/MitFoundationSmokeTest.cpp
         tests/unit/api/NasaMediaApiTest.cpp
+        tests/media/ThumbnailGeneratorTests.cpp
     )
     if(CCOS_ENABLE_LOCAL_AUTOMATION_API)
         target_sources(ccos_tests PRIVATE tests/unit/api/LocalAutomationApiTest.cpp)
