@@ -89,18 +89,13 @@ jobs:
           set -euo pipefail
           source "$CCOS_EMSDK_DIR/emsdk_env.sh"
           embuilder build libGL
-          egl_library="$(emcc --print-file-name=libGL.a)"
-          test -f "$egl_library"
-          echo "CCOS_WASM_EGL_LIBRARY=$egl_library" >> "$GITHUB_ENV"
 
       - name: Configure WebAssembly
         shell: bash
         run: |
           set -euo pipefail
           source "$CCOS_EMSDK_DIR/emsdk_env.sh"
-          egl_library="${CCOS_WASM_EGL_LIBRARY:-$(emcc --print-file-name=libGL.a)}"
-          test -f "$egl_library"
-          cmake --preset web -DEGL_LIBRARY="$egl_library"
+          cmake --preset web
 
       - name: Build WebAssembly
         shell: bash
