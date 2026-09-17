@@ -49,7 +49,7 @@ TEST(HardwareCapabilitiesTest, FallsBackToSoftwareWhenHardwareIsDisabledOrUnavai
     EXPECT_EQ(capabilities.preferredHevcEncoder(true), QStringLiteral("libx265"));
 }
 
-TEST(HardwareCapabilitiesTest, SelectsAvailableHardwareEncoder) {
+TEST(HardwareCapabilitiesTest, SelectsAvailableLowFrictionHardwareEncoder) {
     ccos::render::HardwareCapabilities capabilities;
     capabilities.encoders = {
         QStringLiteral("h264_videotoolbox"),
@@ -57,7 +57,9 @@ TEST(HardwareCapabilitiesTest, SelectsAvailableHardwareEncoder) {
     };
 
     EXPECT_EQ(capabilities.preferredH264Encoder(), QStringLiteral("h264_videotoolbox"));
-    EXPECT_EQ(capabilities.preferredHevcEncoder(), QStringLiteral("hevc_vaapi"));
+    // VAAPI requires a dedicated hardware-device/upload pipeline, so the
+    // current generic exporter intentionally falls back to libx265.
+    EXPECT_EQ(capabilities.preferredHevcEncoder(), QStringLiteral("libx265"));
 }
 
 TEST(HardwareCapabilitiesTest, SupportsAndFlagsRemainConsistent) {
