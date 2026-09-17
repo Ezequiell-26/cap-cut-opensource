@@ -73,6 +73,22 @@
         "CCOS_ENABLE_PRO_CODECS": "ON",
         "CCOS_ENABLE_PRO_STORAGE": "ON"
       }
+    },
+    {
+      "name": "web",
+      "displayName": "CCOS WebAssembly (Qt WASM)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/web",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_TOOLCHAIN_FILE": "${env.QT_ROOT_DIR}/lib/cmake/Qt6/qt.toolchain.cmake",
+        "CCOS_BUILD_TESTS": "OFF",
+        "CCOS_BUILD_CLI": "OFF",
+        "CCOS_FETCH_GTEST": "OFF",
+        "CCOS_ENABLE_LOCAL_AUTOMATION_API": "OFF",
+        "CCOS_ENABLE_LLAMA_SERVER_PROFILE": "OFF",
+        "CCOS_ENABLE_CULTURAL_MEDIA_API": "ON"
+      }
     }
   ],
   "buildPresets": [
@@ -81,7 +97,8 @@
     { "name": "asan-ubsan", "configurePreset": "asan-ubsan", "configuration": "Debug" },
     { "name": "professional", "configurePreset": "professional", "configuration": "Release" },
     { "name": "open-source-extensions", "configurePreset": "open-source-extensions", "configuration": "Debug" },
-    { "name": "professional-media", "configurePreset": "professional-media", "configuration": "Release" }
+    { "name": "professional-media", "configurePreset": "professional-media", "configuration": "Release" },
+    { "name": "web", "configurePreset": "web", "configuration": "Release" }
   ],
   "testPresets": [
     { "name": "debug", "configurePreset": "debug", "output": { "outputOnFailure": true } },
