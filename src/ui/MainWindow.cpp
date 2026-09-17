@@ -57,6 +57,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     buildMenus();
     refreshMediaBin();
     refreshTimeline();
+    setDirty(false);
 
     connect(renderExecutor_, &ccos::render::RenderExecutor::progress, this, [this](double seconds) {
         statusLabel_->setText(QStringLiteral("Rendering… %1 s processed").arg(seconds, 0, 'f', 1));
@@ -88,6 +89,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
                     commandStack_.clear();
                     refreshMediaBin();
                     refreshTimeline();
+                    setDirty(true);
                     statusLabel_->setText(QStringLiteral("Recovered autosaved project"));
                 } else {
                     statusLabel_->setText(QStringLiteral("Recovery failed: %1").arg(error));
@@ -105,7 +107,14 @@ QString MainWindow::recoveryPath() const {
     return QDir(directoryPath).filePath(projectId + QStringLiteral(".ccos"));
 }
 
+void MainWindow::setDirty(bool dirty) {
+    dirty_ = dirty;
+    setWindowTitle(QStringLiteral("CCOS — %1%2")
+                       .arg(project_.name(), dirty_ ? QStringLiteral(" *") : QString()));
+}
+
 void MainWindow::autosave() {
+    if (!dirty_) return;
     QString error;
     if (!ccos::project::ProjectSerializer::save(project_, recoveryPath(), &error)) {
         if (statusLabel_) statusLabel_->setText(QStringLiteral("Autosave failed: %1").arg(error));
@@ -115,6 +124,29 @@ void MainWindow::autosave() {
 }
 
 void MainWindow::closeEvent(QCloseEvent* event) {
+    if (dirty_) {
+        const auto answer = QMessageBox::warning(
+            this,
+            QStringLiteral("Unsaved Changes"),
+            QStringLiteral("The project has unsaved changes. Save before closing?"),
+            QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel,
+            QMessageBox::Save);
+        if (answer == QMessageBox::Cancel) {
+            event->ignore();
+            return;
+        }
+        if (answer == QMessageBox::Save) {
+            saveProject();
+            if (dirty_) {
+                event->ignore();
+                return;
+            }
+        } else {
+            QFile::remove(recoveryPath());
+            setDirty(false);
+        }
+    }
+
     player_->stop();
     if (renderExecutor_->running()) renderExecutor_->cancel();
     autosaveTimer_->stop();
@@ -276,7 +308,7 @@ void MainWindow::newProject() {
     if (!ok) return;
     player_->stop(); commandStack_.clear(); QFile::remove(recoveryPath());
     project_ = ccos::project::Project(name.trimmed().isEmpty() ? QStringLiteral("Untitled Project") : name.trimmed());
-    projectPath_.clear(); refreshMediaBin(); refreshTimeline(); statusLabel_->setText(QStringLiteral("New project created"));
+    projectPath_.clear(); refreshMediaBin(); refreshTimeline(); setDirty(false); statusLabel_->setText(QStringLiteral("New project created"));
 }
 
 QString MainWindow::projectDialogPath(bool save) const {
@@ -290,6 +322,7 @@ void MainWindow::saveProject() {
     QString error;
     if (!ccos::project::ProjectSerializer::save(project_, projectPath_, &error)) { QMessageBox::critical(this, QStringLiteral("Save failed"), error); return; }
     QFile::remove(recoveryPath());
+    setDirty(false);
     statusLabel_->setText(QStringLiteral("Saved: %1").arg(QFileInfo(projectPath_).fileName()));
 }
 
@@ -299,14 +332,14 @@ void MainWindow::openProject() {
     if (!ccos::project::ProjectSerializer::load(loaded, path, &error)) { QMessageBox::critical(this, QStringLiteral("Open failed"), error); return; }
     QFile::remove(recoveryPath());
     player_->stop(); commandStack_.clear(); project_ = std::move(loaded); projectPath_ = path;
-    refreshMediaBin(); refreshTimeline(); statusLabel_->setText(QStringLiteral("Opened: %1").arg(QFileInfo(path).fileName()));
+    refreshMediaBin(); refreshTimeline(); setDirty(false); statusLabel_->setText(QStringLiteral("Opened: %1").arg(QFileInfo(path).fileName()));
 }
 
 void MainWindow::importMedia() {
     const auto paths = QFileDialog::getOpenFileNames(this, QStringLiteral("Import Media"), {}, QStringLiteral("Media Files (*.mp4 *.mov *.mkv *.webm *.avi *.wav *.mp3 *.m4a *.png *.jpg *.jpeg);;All Files (*)"));
     if (paths.isEmpty()) return;
     for (auto asset : ccos::media::MediaImporter::importFiles(paths)) project_.addAsset(std::move(asset));
-    refreshMediaBin(); statusLabel_->setText(QStringLiteral("Imported %1 media file(s)").arg(paths.size()));
+    setDirty(true); refreshMediaBin(); statusLabel_->setText(QStringLiteral("Imported %1 media file(s)").arg(paths.size()));
 }
 
 void MainWindow::addSelectedToTimeline() {
@@ -316,7 +349,7 @@ void MainWindow::addSelectedToTimeline() {
     const auto& clips = track.clips();
     if (!clips.empty()) clip.setStart(clips.back().start() + clips.back().duration());
     if (!commandStack_.execute(std::make_unique<ccos::timeline::AddClipCommand>(track, clip))) return;
-    refreshTimeline(); loadPreviewSource(project_.assets()[static_cast<std::size_t>(row)].path()); statusLabel_->setText(QStringLiteral("Added clip to Video 1"));
+    setDirty(true); refreshTimeline(); loadPreviewSource(project_.assets()[static_cast<std::size_t>(row)].path()); statusLabel_->setText(QStringLiteral("Added clip to Video 1"));
 }
 
 void MainWindow::relinkMissingMedia() {
@@ -347,6 +380,7 @@ void MainWindow::relinkMissingMedia() {
     refreshMediaBin();
     refreshTimeline();
     if (relinked > 0) {
+        setDirty(true);
         statusLabel_->setText(QStringLiteral("Relinked %1 media file(s)%2")
                               .arg(relinked)
                               .arg(unresolved > 0 ? QStringLiteral("; %1 unresolved").arg(unresolved) : QString()));
@@ -377,8 +411,8 @@ void MainWindow::cancelRender() {
     statusLabel_->setText(QStringLiteral("Render cancellation requested"));
 }
 
-void MainWindow::undo() { if (commandStack_.undo()) { refreshTimeline(); statusLabel_->setText(QStringLiteral("Undo")); } }
-void MainWindow::redo() { if (commandStack_.redo()) { refreshTimeline(); statusLabel_->setText(QStringLiteral("Redo")); } }
+void MainWindow::undo() { if (commandStack_.undo()) { setDirty(true); refreshTimeline(); statusLabel_->setText(QStringLiteral("Undo")); } }
+void MainWindow::redo() { if (commandStack_.redo()) { setDirty(true); refreshTimeline(); statusLabel_->setText(QStringLiteral("Redo")); } }
 
 void MainWindow::updateSelection() {
     const int row = mediaBin_->currentRow();
