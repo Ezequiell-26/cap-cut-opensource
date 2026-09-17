@@ -81,7 +81,8 @@
       "binaryDir": "${sourceDir}/build/web",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
-        "CMAKE_TOOLCHAIN_FILE": "${env.QT_ROOT_DIR}/lib/cmake/Qt6/qt.toolchain.cmake",
+        "CMAKE_TOOLCHAIN_FILE": "$env{QT_ROOT_DIR}/lib/cmake/Qt6/qt.toolchain.cmake",
+        "QT_HOST_PATH": "$env{QT_HOST_PATH}",
         "CCOS_BUILD_TESTS": "OFF",
         "CCOS_BUILD_CLI": "OFF",
         "CCOS_FETCH_GTEST": "OFF",
