@@ -6,6 +6,9 @@
 #include <QFileInfo>
 #include <QJsonArray>
 
+#include <cmath>
+#include <limits>
+
 namespace ccos::api {
 namespace {
 
@@ -15,7 +18,8 @@ bool parseNonNegativeIndex(const QJsonObject& request, const QString& key, int* 
         return false;
     }
     const double raw = request.value(key).toDouble();
-    if (raw < 0.0 || raw != static_cast<double>(static_cast<int>(raw))) {
+    if (!std::isfinite(raw) || raw < 0.0 || raw > static_cast<double>(std::numeric_limits<int>::max()) ||
+        raw != std::floor(raw)) {
         if (error) *error = QStringLiteral("%1 must be a non-negative integer").arg(key);
         return false;
     }
