@@ -134,6 +134,28 @@ set(CCOS_SOURCES
     src/render/RenderExecutor.cpp
 )
 
+if(EMSCRIPTEN)
+    # These implementations require a host executable, native process spawning,
+    # or native media tooling. The browser target replaces those responsibilities
+    # with browser APIs and the WebAssembly media runtime.
+    list(REMOVE_ITEM CCOS_SOURCES
+        src/core/ProcessRunner.cpp
+        src/core/JobSystem.cpp
+        src/core/PipelineGraph.cpp
+        src/media/MediaImporter.cpp
+        src/media/MediaProbe.cpp
+        src/media/ProxyManager.cpp
+        src/media/MediaDerivatives.cpp
+        src/media/ThumbnailGenerator.cpp
+        src/media/WaveformGenerator.cpp
+        src/ai/AdvancedAI.cpp
+        src/render/FfmpegExporter.cpp
+        src/render/TimelineExporter.cpp
+        src/render/HardwareCapabilities.cpp
+        src/render/RenderExecutor.cpp
+    )
+endif()
+
 if(CCOS_ENABLE_LOCAL_AUTOMATION_API)
     list(APPEND CCOS_SOURCES src/api/LocalAutomationApi.cpp)
 endif()
