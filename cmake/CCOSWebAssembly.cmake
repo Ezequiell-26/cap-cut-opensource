@@ -1,6 +1,11 @@
 # WebAssembly-only integration for the existing C++/Qt editor.
-# The native desktop UI remains untouched. CMake defers source selection until
-# the main project has created the ccos_editor target.
+# The native desktop UI remains untouched. The module path is adjusted only
+# for the Emscripten target so Qt's prebuilt WASM package can resolve EGL
+# without attempting a host-style native link probe.
+
+if(EMSCRIPTEN)
+    list(PREPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/wasm-modules")
+endif()
 
 function(ccos_enable_webassembly_ui)
     if(NOT EMSCRIPTEN OR NOT TARGET ccos_editor)
