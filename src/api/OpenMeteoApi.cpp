@@ -1,5 +1,6 @@
 #include "api/OpenMeteoApi.hpp"
 
+#include <algorithm>
 #include <QEventLoop>
 #include <QJsonArray>
 #include <QJsonDocument>
