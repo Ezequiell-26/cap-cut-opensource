@@ -384,8 +384,19 @@ void MainWindow::openProject() {
 void MainWindow::importMedia() {
     const auto paths = QFileDialog::getOpenFileNames(this, QStringLiteral("Import Media"), {}, QStringLiteral("Media Files (*.mp4 *.mov *.mkv *.webm *.avi *.wav *.mp3 *.m4a *.png *.jpg *.jpeg);;All Files (*)"));
     if (paths.isEmpty()) return;
-    for (auto asset : ccos::media::MediaImporter::importFiles(paths)) project_.addAsset(std::move(asset));
-    setDirty(true); refreshMediaBin(); statusLabel_->setText(QStringLiteral("Imported %1 media file(s)").arg(paths.size()));
+    QString importError;
+    const auto imported = ccos::media::MediaImporter::importFiles(paths, 4096, &importError);
+    for (auto asset : imported) project_.addAsset(std::move(asset));
+    if (!imported.empty()) {
+        setDirty(true);
+        refreshMediaBin();
+    }
+    if (!importError.isEmpty()) {
+        QMessageBox::warning(this, QStringLiteral("Import Media"),
+                             QStringLiteral("Some files could not be imported:\n%1").arg(importError));
+    }
+    statusLabel_->setText(QStringLiteral("Imported %1 of %2 selected file(s)")
+                          .arg(imported.size()).arg(paths.size()));
 }
 
 void MainWindow::addSelectedToTimeline() {
