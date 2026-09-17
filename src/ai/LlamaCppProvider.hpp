@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ai/AIProvider.hpp"
+#include "ai/OpenAICompatibleProvider.hpp"
 
 #include <memory>
 
@@ -20,7 +21,7 @@ public:
     AIResponse execute(const AIRequest& request) override;
 
 private:
-    std::unique_ptr<class OpenAICompatibleProvider> delegate_;
+    std::unique_ptr<OpenAICompatibleProvider> delegate_;
 };
 
 } // namespace ccos::ai
