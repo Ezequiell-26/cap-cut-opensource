@@ -12,6 +12,8 @@ permissions:
 
 env:
   QT_VERSION: '6.8.3'
+  EM_VERSION: '3.1.56'
+  QT_WASM_ARCH: 'wasm_singlethread'
 
 concurrency:
   group: ccos-webassembly-${{ github.workflow }}-${{ github.ref }}
@@ -21,24 +23,47 @@ jobs:
   build-wasm:
     name: Build CCOS WebAssembly
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Install build tools
         run: |
-          sudo apt-get update
-          sudo apt-get install -y cmake ninja-build
+          sudo apt-get update -qq
+          sudo apt-get install -y cmake ninja-build python3 python3-pip
 
-      - name: Install Qt for WebAssembly
-        uses: jurplel/install-qt-action@v4
+      - name: Setup Emscripten ${{ env.EM_VERSION }}
+        uses: emscripten-core/setup-emsdk@667eb33
+        with:
+          version: ${{ env.EM_VERSION }}
+          actions-cache-folder: emsdk-cache
+
+      - name: Verify Emscripten
+        run: emcc --version
+
+      - name: Install Qt ${{ env.QT_VERSION }} for WebAssembly
+        uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730
         with:
           version: ${{ env.QT_VERSION }}
           host: all_os
           target: wasm
+          arch: ${{ env.QT_WASM_ARCH }}
           modules: qtmultimedia
           cache: true
+          cache-key-prefix: ccos-qt-wasm
+
+      - name: Verify Qt WebAssembly toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "QT_ROOT_DIR=${QT_ROOT_DIR:-unset}"
+          echo "QT_HOST_PATH=${QT_HOST_PATH:-unset}"
+          test -n "${QT_ROOT_DIR:-}"
+          test -f "$QT_ROOT_DIR/lib/cmake/Qt6/qt.toolchain.cmake"
+          test -n "${QT_HOST_PATH:-}"
+          echo "Qt WASM kit: $QT_ROOT_DIR"
+          echo "Qt host kit: $QT_HOST_PATH"
 
       - name: Configure WebAssembly
         run: cmake --preset web
