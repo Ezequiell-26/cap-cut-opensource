@@ -5,9 +5,10 @@ include(FetchContent)
 option(CCOS_ENABLE_MIT_UI_EXTENSIONS "Enable Dear ImGui + ImGuizmo integration" OFF)
 option(CCOS_ENABLE_MIT_DIAGNOSTICS "Enable cpptrace crash/stack diagnostics" OFF)
 option(CCOS_ENABLE_MIT_STORAGE "Enable unordered_dense/date/foonathan memory helpers" OFF)
+option(CCOS_ENABLE_MIT_COMPRESSION "Enable optional libdeflate compression backend" OFF)
 option(CCOS_ENABLE_PRO_TEXT "Use locally audited FreeType + HarfBuzz + libass" OFF)
 option(CCOS_ENABLE_PRO_IMAGE_IO "Use locally audited OpenEXR + OpenImageIO + AVIF/WebP/JXL" OFF)
-option(CCOS_ENABLE_PRO_AUDIO_IO "Use locally audited RtAudio + RtMidi + libsamplerate + SpeexDSP" OFF)
+option(CCOS_ENABLE_PRO_AUDIO_IO "Use locally audited RtAudio + RtMidi + libsamplerate + SpeexDSP + RNNoise + KissFFT" OFF)
 option(CCOS_ENABLE_PRO_CODECS "Use locally audited dav1d + SVT-AV1" OFF)
 option(CCOS_ENABLE_PRO_STORAGE "Use locally audited zstd + lz4 + xxHash + libarchive + libzip" OFF)
 
@@ -95,7 +96,7 @@ if(CCOS_ENABLE_MIT_STORAGE)
     FetchContent_Declare(
         foonathan_memory
         GIT_REPOSITORY https://github.com/foonathan/memory.git
-        GIT_TAG v0.7-3
+        GIT_TAG v0.7-4
         GIT_SHALLOW TRUE
     )
     FetchContent_MakeAvailable(foonathan_memory)
@@ -106,6 +107,26 @@ if(CCOS_ENABLE_MIT_STORAGE)
         ${foonathan_memory_SOURCE_DIR}/include
     )
     target_compile_definitions(ccos_extended_open_source INTERFACE CCOS_HAS_UNORDERED_DENSE CCOS_HAS_DATE CCOS_HAS_FOONATHAN_MEMORY)
+endif()
+
+if(CCOS_ENABLE_MIT_COMPRESSION)
+    FetchContent_Declare(
+        libdeflate
+        GIT_REPOSITORY https://github.com/ebiggers/libdeflate.git
+        GIT_TAG v1.24
+        GIT_SHALLOW TRUE
+    )
+    FetchContent_MakeAvailable(libdeflate)
+    if(TARGET deflate OR TARGET libdeflate_shared OR TARGET libdeflate_static)
+        if(TARGET libdeflate_static)
+            target_link_libraries(ccos_extended_open_source INTERFACE libdeflate_static)
+        elseif(TARGET libdeflate_shared)
+            target_link_libraries(ccos_extended_open_source INTERFACE libdeflate_shared)
+        elseif(TARGET deflate)
+            target_link_libraries(ccos_extended_open_source INTERFACE deflate)
+        endif()
+        target_compile_definitions(ccos_extended_open_source INTERFACE CCOS_HAS_LIBDEFLATE)
+    endif()
 endif()
 
 # Professional libraries are discovered from the host toolchain. We do not
@@ -205,6 +226,20 @@ if(CCOS_ENABLE_PRO_AUDIO_IO AND PkgConfig_FOUND)
         target_link_directories(ccos_extended_open_source INTERFACE ${SPEEXDSP_LIBRARY_DIRS})
         target_link_libraries(ccos_extended_open_source INTERFACE ${SPEEXDSP_LIBRARIES})
         target_compile_definitions(ccos_extended_open_source INTERFACE CCOS_HAS_SPEEXDSP)
+    endif()
+    pkg_check_modules(RNNOISE QUIET rnnoise)
+    if(RNNOISE_FOUND)
+        target_include_directories(ccos_extended_open_source INTERFACE ${RNNOISE_INCLUDE_DIRS})
+        target_link_directories(ccos_extended_open_source INTERFACE ${RNNOISE_LIBRARY_DIRS})
+        target_link_libraries(ccos_extended_open_source INTERFACE ${RNNOISE_LIBRARIES})
+        target_compile_definitions(ccos_extended_open_source INTERFACE CCOS_HAS_RNNOISE)
+    endif()
+    pkg_check_modules(KISSFFT QUIET kissfft)
+    if(KISSFFT_FOUND)
+        target_include_directories(ccos_extended_open_source INTERFACE ${KISSFFT_INCLUDE_DIRS})
+        target_link_directories(ccos_extended_open_source INTERFACE ${KISSFFT_LIBRARY_DIRS})
+        target_link_libraries(ccos_extended_open_source INTERFACE ${KISSFFT_LIBRARIES})
+        target_compile_definitions(ccos_extended_open_source INTERFACE CCOS_HAS_KISSFFT)
     endif()
 endif()
 
