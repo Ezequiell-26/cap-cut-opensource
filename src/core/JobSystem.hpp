@@ -1,35 +1,31 @@
 #pragma once
 
 #include <QObject>
-#include <QFuture>
-#include <QPromise>
-#include <QMutex>
-#include <QQueue>
-#include <QLoggingCategory>
-#include <QUuid>
 #include <QDateTime>
+#include <QFuture>
+#include <QFutureWatcher>
+#include <QHash>
+#include <QMutex>
+#include <QSharedPointer>
+#include <QString>
+#include <QVariant>
+
+#include <atomic>
 #include <functional>
 #include <memory>
-#include <atomic>
 
 namespace ccos::core {
 
-/**
- * @brief Estados posibles de un Job en el sistema.
- */
 enum class JobState {
-    QUEUED,      // Esperando ejecución
-    RUNNING,     // En ejecución
-    PAUSED,      // Pausado temporalmente
-    CANCELLING,  // En proceso de cancelación
-    CANCELLED,   // Cancelado exitosamente
-    FAILED,      // Falló con error
-    COMPLETED    // Completado exitosamente
+    QUEUED,
+    RUNNING,
+    PAUSED,
+    CANCELLING,
+    CANCELLED,
+    FAILED,
+    COMPLETED
 };
 
-/**
- * @brief Tipos de Jobs soportados por el sistema.
- */
 enum class JobType {
     IMPORT_MEDIA,
     PROBE_MEDIA,
@@ -44,204 +40,177 @@ enum class JobType {
     CUSTOM
 };
 
-/**
- * @brief Información detallada de error para diagnóstico.
- */
 struct JobError {
-    int code = -1;
+    int code = 0;
     QString message;
     QString details;
     bool recoverable = false;
     bool retryable = false;
-    
+
     static JobError success() { return {}; }
-    static JobError failed(const QString &msg, int code = -1, bool retryable = false) {
-        JobError err;
-        err.code = code;
-        err.message = msg;
-        err.retryable = retryable;
-        return err;
+
+    static JobError failed(const QString& msg, int errorCode = -1, bool canRetry = false) {
+        JobError error;
+        error.code = errorCode;
+        error.message = msg;
+        error.retryable = canRetry;
+        return error;
     }
 };
 
-/**
- * @brief Configuración de un Job.
- */
+/** Cooperative control for jobs that need cancellation or pause support. */
+class JobControl final {
+public:
+    [[nodiscard]] bool isCancelled() const noexcept {
+        return m_cancelled.load(std::memory_order_relaxed);
+    }
+
+    [[nodiscard]] bool isPaused() const noexcept {
+        return m_paused.load(std::memory_order_relaxed);
+    }
+
+    void requestCancel() noexcept {
+        m_cancelled.store(true, std::memory_order_relaxed);
+        m_paused.store(false, std::memory_order_relaxed);
+    }
+
+    void requestPause() noexcept {
+        if (!isCancelled()) m_paused.store(true, std::memory_order_relaxed);
+    }
+
+    void requestResume() noexcept {
+        m_paused.store(false, std::memory_order_relaxed);
+    }
+
+private:
+    std::atomic_bool m_cancelled{false};
+    std::atomic_bool m_paused{false};
+};
+
+using JobControlPtr = std::shared_ptr<JobControl>;
+
 struct JobConfig {
     JobType type = JobType::CUSTOM;
     QString id;
     QString name;
-    int priority = 5; // 0-10, donde 10 es más prioritario
+    int priority = 5;
     std::function<QVariant()> executeFn;
+    std::function<QVariant(const JobControlPtr&)> cooperativeExecuteFn;
     std::function<void(double)> progressCallback;
-    std::function<void(const JobError &)> completionCallback;
+    std::function<void(const JobError&)> completionCallback;
     int maxRetries = 1;
     bool cancelable = true;
     QVariant userData;
 };
 
-/**
- * @brief Estado completo de un Job.
- */
 struct JobStatus {
     QString id;
     JobType type = JobType::CUSTOM;
     QString name;
     JobState state = JobState::QUEUED;
     int priority = 5;
-    double progress = 0.0; // 0.0 - 1.0
+    double progress = 0.0;
     QDateTime createdAt;
     QDateTime startedAt;
     QDateTime completedAt;
-    JobError error;
+    JobError error = JobError::success();
     int retryCount = 0;
     int maxRetries = 1;
     bool cancelable = true;
     QVariant result;
     QVariant userData;
-    
-    QString stateToString() const {
+
+    [[nodiscard]] QString stateToString() const {
         switch (state) {
-            case JobState::QUEUED: return "QUEUED";
-            case JobState::RUNNING: return "RUNNING";
-            case JobState::PAUSED: return "PAUSED";
-            case JobState::CANCELLING: return "CANCELLING";
-            case JobState::CANCELLED: return "CANCELLED";
-            case JobState::FAILED: return "FAILED";
-            case JobState::COMPLETED: return "COMPLETED";
-            default: return "UNKNOWN";
+        case JobState::QUEUED: return QStringLiteral("QUEUED");
+        case JobState::RUNNING: return QStringLiteral("RUNNING");
+        case JobState::PAUSED: return QStringLiteral("PAUSED");
+        case JobState::CANCELLING: return QStringLiteral("CANCELLING");
+        case JobState::CANCELLED: return QStringLiteral("CANCELLED");
+        case JobState::FAILED: return QStringLiteral("FAILED");
+        case JobState::COMPLETED: return QStringLiteral("COMPLETED");
         }
+        return QStringLiteral("UNKNOWN");
     }
-    
-    QString typeToString() const {
+
+    [[nodiscard]] QString typeToString() const {
         switch (type) {
-            case JobType::IMPORT_MEDIA: return "IMPORT_MEDIA";
-            case JobType::PROBE_MEDIA: return "PROBE_MEDIA";
-            case JobType::GENERATE_THUMBNAIL: return "GENERATE_THUMBNAIL";
-            case JobType::GENERATE_WAVEFORM: return "GENERATE_WAVEFORM";
-            case JobType::GENERATE_PROXY: return "GENERATE_PROXY";
-            case JobType::RENDER_PREVIEW: return "RENDER_PREVIEW";
-            case JobType::EXPORT_VIDEO: return "EXPORT_VIDEO";
-            case JobType::TRANSCRIBE_AUDIO: return "TRANSCRIBE_AUDIO";
-            case JobType::AI_ANALYSIS: return "AI_ANALYSIS";
-            case JobType::CACHE_OPERATION: return "CACHE_OPERATION";
-            case JobType::CUSTOM: return "CUSTOM";
-            default: return "UNKNOWN";
+        case JobType::IMPORT_MEDIA: return QStringLiteral("IMPORT_MEDIA");
+        case JobType::PROBE_MEDIA: return QStringLiteral("PROBE_MEDIA");
+        case JobType::GENERATE_THUMBNAIL: return QStringLiteral("GENERATE_THUMBNAIL");
+        case JobType::GENERATE_WAVEFORM: return QStringLiteral("GENERATE_WAVEFORM");
+        case JobType::GENERATE_PROXY: return QStringLiteral("GENERATE_PROXY");
+        case JobType::RENDER_PREVIEW: return QStringLiteral("RENDER_PREVIEW");
+        case JobType::EXPORT_VIDEO: return QStringLiteral("EXPORT_VIDEO");
+        case JobType::TRANSCRIBE_AUDIO: return QStringLiteral("TRANSCRIBE_AUDIO");
+        case JobType::AI_ANALYSIS: return QStringLiteral("AI_ANALYSIS");
+        case JobType::CACHE_OPERATION: return QStringLiteral("CACHE_OPERATION");
+        case JobType::CUSTOM: return QStringLiteral("CUSTOM");
         }
+        return QStringLiteral("UNKNOWN");
     }
 };
 
-/**
- * @brief Sistema de Jobs para operaciones asíncronas y concurrentes.
- * 
- * CARACTERÍSTICAS:
- * - Cola de prioridad
- * - Cancelación segura
- * - Reintentos automáticos
- * - Observabilidad completa
- * - Sin bloqueo de UI
- * - Prevención de starvation
- */
-class JobSystem : public QObject {
+class JobSystem final : public QObject {
     Q_OBJECT
 
 public:
-    explicit JobSystem(int maxConcurrentJobs = 4, QObject *parent = nullptr);
+    explicit JobSystem(int maxConcurrentJobs = 4, QObject* parent = nullptr);
     ~JobSystem() override;
 
-    /**
-     * @brief Agrega un job a la cola de ejecución.
-     * @param config Configuración del job
-     * @return ID único del job
-     */
-    QString enqueue(const JobConfig &config);
-
-    /**
-     * @brief Cancela un job específico.
-     * @param jobId ID del job a cancelar
-     * @return true si la cancelación fue solicitada
-     */
-    bool cancelJob(const QString &jobId);
-
-    /**
-     * @brief Cancela todos los jobs activos.
-     */
+    [[nodiscard]] QString enqueue(const JobConfig& config);
+    bool cancelJob(const QString& jobId);
     void cancelAll();
+    bool pauseJob(const QString& jobId);
+    bool resumeJob(const QString& jobId);
 
-    /**
-     * @brief Pausa un job en ejecución.
-     * @param jobId ID del job a pausar
-     */
-    bool pauseJob(const QString &jobId);
+    [[nodiscard]] std::optional<JobStatus> getJobStatus(const QString& jobId) const;
+    [[nodiscard]] QList<JobStatus> getAllJobs() const;
 
-    /**
-     * @brief Reanuda un job pausado.
-     * @param jobId ID del job a reanudar
-     */
-    bool resumeJob(const QString &jobId);
-
-    /**
-     * @brief Obtiene el estado de un job.
-     * @param jobId ID del job
-     * @return Estado del job o nullo si no existe
-     */
-    std::optional<JobStatus> getJobStatus(const QString &jobId) const;
-
-    /**
-     * @brief Lista todos los jobs con su estado actual.
-     */
-    QList<JobStatus> getAllJobs() const;
-
-    /**
-     * @brief Limpia jobs completados/cancelados/fallidos antiguos.
-     * @param olderThan Mantener solo jobs más recientes que esto (en horas)
-     */
     void cleanupOldJobs(int olderThanHours = 24);
 
-    /**
-     * @brief Número de jobs en ejecución actualmente.
-     */
-    int activeJobCount() const;
-
-    /**
-     * @brief Número total de jobs en cola.
-     */
-    int queuedJobCount() const;
+    [[nodiscard]] int activeJobCount() const;
+    [[nodiscard]] int queuedJobCount() const;
 
 signals:
-    void jobEnqueued(const QString &jobId, JobType type);
-    void jobStarted(const QString &jobId);
-    void jobProgressUpdated(const QString &jobId, double progress);
-    void jobCompleted(const QString &jobId, const QVariant &result);
-    void jobFailed(const QString &jobId, const JobError &error);
-    void jobCancelled(const QString &jobId);
-    void jobPaused(const QString &jobId);
-    void jobResumed(const QString &jobId);
-    void jobRetrying(const QString &jobId, int attempt);
+    void jobEnqueued(const QString& jobId, JobType type);
+    void jobStarted(const QString& jobId);
+    void jobProgressUpdated(const QString& jobId, double progress);
+    void jobCompleted(const QString& jobId, const QVariant& result);
+    void jobFailed(const QString& jobId, const JobError& error);
+    void jobCancelled(const QString& jobId);
+    void jobPaused(const QString& jobId);
+    void jobResumed(const QString& jobId);
+    void jobRetrying(const QString& jobId, int attempt);
 
 private slots:
-    void processNextJob();
-    void onJobFinished(const QString &jobId, const QVariant &result, const JobError &error);
+    void processNextJobs();
+    void onJobFinished(const QString& jobId, const QVariant& result, const JobError& error);
 
 private:
-    struct InternalJob {
-        JobStatus status;
-        QFutureWatcher<QVariant> *watcher = nullptr;
-        std::atomic<bool> cancelled{false};
-        std::atomic<bool> paused{false};
+    struct ExecutionOutcome {
+        QVariant result;
+        JobError error;
     };
 
-    void executeJob(InternalJob &job);
-    void handleJobFailure(InternalJob &job, const JobError &error);
+    struct InternalJob {
+        JobConfig config;
+        JobStatus status;
+        JobControlPtr control;
+        QPointer<QFutureWatcher<ExecutionOutcome>> watcher;
+    };
+
+    using JobPtr = std::shared_ptr<InternalJob>;
+
+    void executeJob(const JobPtr& job);
+    void handleJobFailure(const JobPtr& job, const JobError& error);
     void scheduleExecution();
 
     mutable QMutex m_mutex;
     QQueue<QString> m_jobQueue;
-    QMap<QString, InternalJob> m_jobs;
-    int m_maxConcurrentJobs;
-    std::atomic<int> m_activeCount{0};
-    
-    friend class JobSystemTest;
+    QHash<QString, JobPtr> m_jobs;
+    int m_maxConcurrentJobs = 1;
+    int m_activeCount = 0;
 };
 
 } // namespace ccos::core
