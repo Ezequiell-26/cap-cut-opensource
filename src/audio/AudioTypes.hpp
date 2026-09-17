@@ -3,6 +3,8 @@
 #include <string>
 #include <vector>
 #include <cstdint>
+#include <cmath>
+#include <algorithm>
 #include <memory>
 #include <unordered_map>
 
@@ -104,13 +106,16 @@ struct AudioBuffer {
     
     // Apply gain
     void applyGain(float gain) {
+        if (!std::isfinite(gain)) gain = 1.0f;
         for (auto& sample : samples) {
-            sample *= gain;
+            if (!std::isfinite(sample)) sample = 0.0f;
+            sample = std::clamp(sample * gain, -1.0f, 1.0f);
         }
     }
     
     // Fade in/out
     void fadeIn(FrameCount frames) {
+        if (frames == 0 || frameCount == 0) return;
         for (FrameCount i = 0; i < std::min(frames, frameCount); ++i) {
             float factor = static_cast<float>(i) / frames;
             for (ChannelCount ch = 0; ch < channels; ++ch) {
@@ -120,6 +125,7 @@ struct AudioBuffer {
     }
     
     void fadeOut(FrameCount frames) {
+        if (frames == 0 || frameCount == 0) return;
         FrameCount start = frameCount > frames ? frameCount - frames : 0;
         for (FrameCount i = start; i < frameCount; ++i) {
             float factor = 1.0f - static_cast<float>(i - start) / frames;
