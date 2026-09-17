@@ -34,6 +34,7 @@ bool FfmpegExporter::exportAsset(const ccos::media::MediaAsset& asset, const QSt
     config.startupTimeout = std::chrono::seconds(5);
     config.maxOutputSize = 16 * 1024 * 1024;
     config.riskLevel = ccos::core::ProcessConfig::RiskLevel::High;
+    config.sanitizeEnvironment = true;
 
     const auto result = runner.executeSync(config);
     if (!result.isSuccess()) {
