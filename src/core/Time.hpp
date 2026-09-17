@@ -1,13 +1,11 @@
 #pragma once
 
-#include <compare>
 #include <cstdint>
+#include <compare>
 #include <string>
 
 namespace ccos::core {
 
-/// Exact timeline time represented as a reduced rational number.
-/// Values are expressed in seconds; frames are converted using the supplied frame rate.
 class Time {
 public:
     Time() noexcept = default;
@@ -22,7 +20,7 @@ public:
     friend Time operator-(Time lhs, Time rhs) noexcept;
     friend Time operator-(Time value) noexcept { return Time(-value.numerator_, value.denominator_); }
     friend bool operator==(Time lhs, Time rhs) noexcept;
-    friend auto operator<=>(Time lhs, Time rhs) noexcept;
+    friend std::strong_ordering operator<=>(Time lhs, Time rhs) noexcept;
 
     static Time fromSeconds(double value, std::int32_t denominator = 1000000) noexcept;
     static Time fromFrames(std::int64_t frame, std::int32_t fpsNumerator, std::int32_t fpsDenominator = 1) noexcept;
