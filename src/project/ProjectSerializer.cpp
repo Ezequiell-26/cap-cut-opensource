@@ -6,6 +6,7 @@
 #include <QJsonObject>
 #include <QSaveFile>
 
+#include <cmath>
 #include <unordered_set>
 #include <utility>
 
