@@ -63,3 +63,13 @@ TEST(MediaCacheTests, ChangesSourceFingerprintWhenFileSizeChanges) {
     const QString secondKey = cache.keyFor(source, QStringLiteral("thumbnail_320x180_0ms"));
     EXPECT_NE(firstKey, secondKey);
 }
+
+TEST(MediaCacheTests, RejectsEntryLargerThanConfiguredCacheBudget) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    ccos::media::MediaCache cache(dir.path(), 16);
+
+    EXPECT_FALSE(cache.write(
+        QStringLiteral("source"), QStringLiteral("large-entry"),
+        QByteArrayLiteral("this payload is larger than sixteen bytes"), QStringLiteral("bin")));
+}
