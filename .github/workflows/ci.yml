@@ -22,27 +22,26 @@ jobs:
           host: ${{ startsWith(matrix.os, 'windows') && 'windows' || startsWith(matrix.os, 'macos') && 'mac' || 'linux' }}
           target: 'desktop'
           arch: ${{ startsWith(matrix.os, 'windows') && 'win64_msvc2022_64' || startsWith(matrix.os, 'macos') && 'clang_64' || 'linux_gcc_64' }}
-          modules: 'qtserialport'
+          modules: 'qtmultimedia'
           cache: true
 
       - name: Install Linux dependencies
         if: startsWith(matrix.os, 'ubuntu')
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake ninja-build libgtest-dev
+          sudo apt-get install -y cmake ninja-build
 
       - name: Install macOS dependencies
         if: startsWith(matrix.os, 'macos')
-        run: brew install cmake ninja googletest
+        run: brew install cmake ninja
 
       - name: Install Windows dependencies
         if: startsWith(matrix.os, 'windows')
         shell: pwsh
-        run: |
-          choco install ninja -y --no-progress
+        run: choco install ninja -y --no-progress
 
       - name: Configure
-        run: cmake -S . -B build -G Ninja -DCCOS_BUILD_TESTS=ON -DCMAKE_BUILD_TYPE=Release
+        run: cmake -S . -B build -G Ninja -DCCOS_BUILD_TESTS=ON -DCCOS_FETCH_GTEST=ON -DCMAKE_BUILD_TYPE=Release
 
       - name: Build
         run: cmake --build build --parallel
