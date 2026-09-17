@@ -1,0 +1,67 @@
+name: CCOS One-shot hardening
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ccos-one-shot-hardening
+  cancel-in-progress: false
+
+jobs:
+  harden:
+    # This workflow removes itself after a successful hardening pass.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Install build dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends cmake ninja-build python3 python3-venv
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.3'
+          host: linux
+          target: desktop
+          arch: linux_gcc_64
+          modules: qtmultimedia
+          cache: true
+          install-deps: true
+
+      - name: Apply hardening changes
+        run: python3 tools/maintenance/ccos_one_shot_hardening.py
+
+      - name: Configure
+        run: cmake -S . -B build -G Ninja -DCCOS_BUILD_TESTS=ON -DCCOS_FETCH_GTEST=ON -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --config Release --parallel 2
+
+      - name: Test
+        run: ctest --test-dir build -C Release --output-on-failure
+
+      - name: Remove one-shot tooling and commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/ccos-one-shot-hardening.yml tools/maintenance/ccos_one_shot_hardening.py
+          git config user.name "CCOS Automation"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git add -A
+          git commit -m "fix: harden production foundation and restore CI"
+          git push origin HEAD:main
