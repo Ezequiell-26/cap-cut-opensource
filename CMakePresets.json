@@ -43,18 +43,50 @@
         "CCOS_ENABLE_OPENTIMELINEIO": "ON",
         "CCOS_ENABLE_OPENCOLORIO": "ON"
       }
+    },
+    {
+      "name": "open-source-extensions",
+      "displayName": "CCOS Extended MIT/Open Source Tooling",
+      "inherits": "debug",
+      "binaryDir": "${sourceDir}/build/open-source-extensions",
+      "cacheVariables": {
+        "CCOS_ENABLE_MIT_MEDIA_3D": "ON",
+        "CCOS_ENABLE_MIT_TOOLING": "ON",
+        "CCOS_ENABLE_MINIAUDIO": "ON",
+        "CCOS_ENABLE_MIT_UI_EXTENSIONS": "ON",
+        "CCOS_ENABLE_MIT_DIAGNOSTICS": "ON",
+        "CCOS_ENABLE_MIT_STORAGE": "ON",
+        "CCOS_ENABLE_MIT_COMPRESSION": "ON"
+      }
+    },
+    {
+      "name": "professional-media",
+      "displayName": "CCOS Professional Media Backends (Audited Host)",
+      "inherits": "release",
+      "binaryDir": "${sourceDir}/build/professional-media",
+      "cacheVariables": {
+        "CCOS_ENABLE_PRO_TEXT": "ON",
+        "CCOS_ENABLE_PRO_IMAGE_IO": "ON",
+        "CCOS_ENABLE_PRO_AUDIO_IO": "ON",
+        "CCOS_ENABLE_PRO_CODECS": "ON",
+        "CCOS_ENABLE_PRO_STORAGE": "ON"
+      }
     }
   ],
   "buildPresets": [
     { "name": "debug", "configurePreset": "debug", "configuration": "Debug" },
     { "name": "release", "configurePreset": "release", "configuration": "Release" },
     { "name": "asan-ubsan", "configurePreset": "asan-ubsan", "configuration": "Debug" },
-    { "name": "professional", "configurePreset": "professional", "configuration": "Release" }
+    { "name": "professional", "configurePreset": "professional", "configuration": "Release" },
+    { "name": "open-source-extensions", "configurePreset": "open-source-extensions", "configuration": "Debug" },
+    { "name": "professional-media", "configurePreset": "professional-media", "configuration": "Release" }
   ],
   "testPresets": [
     { "name": "debug", "configurePreset": "debug", "output": { "outputOnFailure": true } },
     { "name": "release", "configurePreset": "release", "output": { "outputOnFailure": true } },
     { "name": "asan-ubsan", "configurePreset": "asan-ubsan", "output": { "outputOnFailure": true } },
-    { "name": "professional", "configurePreset": "professional", "output": { "outputOnFailure": true } }
+    { "name": "professional", "configurePreset": "professional", "output": { "outputOnFailure": true } },
+    { "name": "open-source-extensions", "configurePreset": "open-source-extensions", "output": { "outputOnFailure": true } },
+    { "name": "professional-media", "configurePreset": "professional-media", "output": { "outputOnFailure": true } }
   ]
 }
