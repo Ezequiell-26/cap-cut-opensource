@@ -14,8 +14,9 @@ env:
   QT_VERSION: '6.8.3'
   QT_WASM_ARCH: 'wasm_singlethread'
   QT_PREFIX: '${{ github.workspace }}/.qt'
-  EMSDK_PATH: '${{ github.workspace }}/.emsdk'
   EM_VERSION: '3.1.56'
+  EMSDK_DIR: '${{ github.workspace }}/.emsdk'
+  AQT_VENV: '${{ github.workspace }}/.aqt-venv'
 
 concurrency:
   group: ccos-webassembly-${{ github.workflow }}-${{ github.ref }}
@@ -34,31 +35,31 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends cmake ninja-build python3 python3-pip git ca-certificates
+          sudo apt-get install -y --no-install-recommends cmake ninja-build python3 python3-pip python3-venv git ca-certificates
 
       - name: Install Emscripten SDK
         shell: bash
         run: |
           set -euo pipefail
-          emsdk_dir="${{ github.workspace }}/.emsdk"
-          if [ ! -d "$emsdk_dir" ]; then
-            git clone --depth 1 --branch "$EM_VERSION" https://github.com/emscripten-core/emsdk.git "$emsdk_dir"
+          if [ ! -d "$EMSDK_DIR" ]; then
+            git clone --depth 1 --branch "$EM_VERSION" https://github.com/emscripten-core/emsdk.git "$EMSDK_DIR"
           fi
-          "$emsdk_dir/emsdk" install "$EM_VERSION"
-          "$emsdk_dir/emsdk" activate "$EM_VERSION"
-          source "$emsdk_dir/emsdk_env.sh"
-          echo "EMSDK=$emsdk_dir" >> "$GITHUB_ENV"
-          echo "$emsdk_dir" >> "$GITHUB_PATH"
-          echo "$emsdk_dir/upstream/emscripten" >> "$GITHUB_PATH"
-          echo "EM_CACHE=$emsdk_dir/upstream/emscripten/cache" >> "$GITHUB_ENV"
+          "$EMSDK_DIR/emsdk" install "$EM_VERSION"
+          "$EMSDK_DIR/emsdk" activate "$EM_VERSION"
+          source "$EMSDK_DIR/emsdk_env.sh"
+          echo "EMSDK=$EMSDK_DIR" >> "$GITHUB_ENV"
+          echo "$EMSDK_DIR" >> "$GITHUB_PATH"
+          echo "$EMSDK_DIR/upstream/emscripten" >> "$GITHUB_PATH"
+          echo "EM_CACHE=$EMSDK_DIR/upstream/emscripten/cache" >> "$GITHUB_ENV"
           emcc --version
 
       - name: Install Qt for WebAssembly
         shell: bash
         run: |
           set -euo pipefail
-          python3 -m pip install --disable-pip-version-check --no-cache-dir 'aqtinstall>=3.3,<3.4'
-          python3 -m aqt install-qt all_os wasm "$QT_VERSION" "$QT_WASM_ARCH" \
+          python3 -m venv "$AQT_VENV"
+          "$AQT_VENV/bin/python" -m pip install --disable-pip-version-check --no-cache-dir 'aqtinstall==3.3.1'
+          "$AQT_VENV/bin/python" -m aqt install-qt all_os wasm "$QT_VERSION" "$QT_WASM_ARCH" \
             --autodesktop \
             --modules qtmultimedia \
             --outputdir "$QT_PREFIX"
@@ -71,7 +72,6 @@ jobs:
         run: |
           set -euo pipefail
           test -f "$QT_ROOT_DIR/lib/cmake/Qt6/qt.toolchain.cmake"
-          test -n "${QT_HOST_PATH:-}"
           test -d "$QT_HOST_PATH"
           source "$EMSDK/emsdk_env.sh"
           emcc --version
@@ -100,13 +100,16 @@ jobs:
           mkdir -p web-dist
 
           test -f build/web/ccos-editor.html
-          cp build/web/ccos-editor.html web-dist/index.html
+          test -f build/web/ccos-editor.js
+          test -f build/web/ccos-editor.wasm
 
-          for file in build/web/ccos-editor.js build/web/ccos-editor.wasm build/web/qtloader.js; do
-            if [ -f "$file" ]; then
-              cp "$file" web-dist/
-            fi
-          done
+          cp build/web/ccos-editor.html web-dist/index.html
+          cp build/web/ccos-editor.js web-dist/
+          cp build/web/ccos-editor.wasm web-dist/
+
+          if [ -f build/web/qtloader.js ]; then
+            cp build/web/qtloader.js web-dist/
+          fi
 
           find build/web -maxdepth 1 -type f \
             \( -name 'ccos-editor.*' -o -name '*.worker.js' -o -name 'qtlogo.svg' \) \
