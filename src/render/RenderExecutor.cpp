@@ -1,5 +1,6 @@
 #include "render/RenderExecutor.hpp"
 #include "render/TimelineCompositor.hpp"
+#include "render/HardwareCapabilities.hpp"
 #include "core/ProcessRunner.hpp"
 
 #include <QProcessEnvironment>
@@ -8,6 +9,15 @@
 #include <algorithm>
 
 namespace ccos::render {
+namespace {
+
+QString resolveVideoCodec(const QString& requested, const QString& executable) {
+    const QString trimmed = requested.trimmed();
+    if (trimmed != QStringLiteral("auto")) return trimmed;
+    return HardwareCapabilitiesProbe::detect(executable).preferredH264Encoder(true);
+}
+
+} // namespace
 
 RenderExecutor::RenderExecutor(QObject* parent) : QObject(parent) {
     process_.setProcessChannelMode(QProcess::MergedChannels);
@@ -99,6 +109,13 @@ bool RenderExecutor::start(const ccos::project::Project& project, const QString&
         return false;
     }
 
+    const QString videoCodec = resolveVideoCodec(settings.videoCodec, executable);
+    if (videoCodec.isEmpty()) {
+        error = QStringLiteral("Unable to resolve the requested video encoder");
+        Q_EMIT finished(false, error);
+        return false;
+    }
+
     diagnosticBuffer_.clear();
     QStringList args{
         QStringLiteral("-hide_banner"),
@@ -111,7 +128,7 @@ bool RenderExecutor::start(const ccos::project::Project& project, const QString&
     args << QStringLiteral("-filter_complex") << filter
          << QStringLiteral("-map") << video
          << QStringLiteral("-map") << audio
-         << QStringLiteral("-c:v") << settings.videoCodec
+         << QStringLiteral("-c:v") << videoCodec
          << QStringLiteral("-b:v") << QStringLiteral("%1k").arg(settings.videoBitrateKbps)
          << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p")
          << QStringLiteral("-r") << QString::number(settings.fps, 'f', 3)
