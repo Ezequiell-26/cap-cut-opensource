@@ -55,7 +55,16 @@ bool MediaCache::isCacheFileName(const QString& fileName) {
 }
 
 QString MediaCache::keyFor(const QString& source, const QString& variant) const {
-    const QByteArray payload = source.toUtf8() + '\0' + variant.toUtf8();
+    QString normalizedSource = source.trimmed();
+    const QFileInfo info(normalizedSource);
+    if (info.exists() && info.isFile()) {
+        normalizedSource = info.absoluteFilePath();
+        const QByteArray fingerprint = QByteArray::number(info.size()) + '\0' +
+                                       QByteArray::number(info.lastModified().toMSecsSinceEpoch());
+        normalizedSource += QStringLiteral("#file=") + QString::fromLatin1(fingerprint.toHex());
+    }
+
+    const QByteArray payload = normalizedSource.toUtf8() + '\0' + variant.toUtf8();
     return QString::fromLatin1(QCryptographicHash::hash(payload, QCryptographicHash::Sha256).toHex());
 }
 
