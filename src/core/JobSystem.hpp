@@ -8,7 +8,6 @@
 #include <QMutex>
 #include <QPointer>
 #include <QQueue>
-#include <QSharedPointer>
 #include <QString>
 #include <QVariant>
 
@@ -102,6 +101,7 @@ struct JobConfig {
     std::function<void(double)> progressCallback;
     std::function<void(const JobError&)> completionCallback;
     int maxRetries = 1;
+    bool retryExceptions = false;
     bool cancelable = true;
     QVariant userData;
 };
@@ -171,7 +171,6 @@ public:
     [[nodiscard]] QList<JobStatus> getAllJobs() const;
 
     void cleanupOldJobs(int olderThanHours = 24);
-
     [[nodiscard]] int activeJobCount() const;
     [[nodiscard]] int queuedJobCount() const;
 
