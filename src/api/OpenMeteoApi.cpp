@@ -67,10 +67,6 @@ bool getJson(const QUrl& url, QJsonDocument* document) {
     return true;
 }
 
-QString normalizeOptional(const QJsonObject& object, const QString& key) {
-    return object.value(key).toString().trimmed();
-}
-
 QString conditionForCode(int code) {
     switch (code) {
         case 0: return QStringLiteral("Clear sky");
