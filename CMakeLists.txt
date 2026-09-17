@@ -179,7 +179,7 @@ if(CCOS_BUILD_TESTS)
         tests/media/MediaCacheTests.cpp
         tests/effects/BuiltinEffectsTests.cpp
         tests/text/SubtitleParserTests.cpp
-        tests/unit/core/JobSystemTest.cpp
+        tests/unit/core/JobSystemSmokeTest.cpp
         tests/unit/core/ProcessRunnerTest.cpp
     )
 
