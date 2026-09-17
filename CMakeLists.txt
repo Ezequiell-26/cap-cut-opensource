@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.24)
 
 project(CCOS
-    VERSION 0.3.0
+    VERSION 0.4.0
     DESCRIPTION "CCOS - Open Source Professional Video Editor"
     LANGUAGES CXX
 )
@@ -46,6 +46,7 @@ add_library(ccos_core
     src/render/FfmpegExporter.cpp
     src/render/TimelineExporter.cpp
     src/render/TimelineCompositor.cpp
+    src/render/TextComposer.cpp
     src/render/HardwareCapabilities.cpp
     src/render/RenderExecutor.cpp
 )
