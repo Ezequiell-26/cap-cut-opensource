@@ -1,4 +1,5 @@
 #include "render/ExportSettings.hpp"
+#include "render/HardwareCapabilities.hpp"
 
 #include <gtest/gtest.h>
 
@@ -38,4 +39,40 @@ TEST(ExportSettingsTest, RejectsArgumentLikeTokens) {
     settings.audioCodec = QStringLiteral("aac");
     settings.container = QStringLiteral("mp4/../mkv");
     EXPECT_FALSE(settings.validate());
+}
+
+TEST(HardwareCapabilitiesTest, FallsBackToSoftwareWhenHardwareIsDisabledOrUnavailable) {
+    ccos::render::HardwareCapabilities capabilities;
+    EXPECT_EQ(capabilities.preferredH264Encoder(false), QStringLiteral("libx264"));
+    EXPECT_EQ(capabilities.preferredHevcEncoder(false), QStringLiteral("libx265"));
+    EXPECT_EQ(capabilities.preferredH264Encoder(true), QStringLiteral("libx264"));
+    EXPECT_EQ(capabilities.preferredHevcEncoder(true), QStringLiteral("libx265"));
+}
+
+TEST(HardwareCapabilitiesTest, SelectsAvailableHardwareEncoder) {
+    ccos::render::HardwareCapabilities capabilities;
+    capabilities.encoders = {
+        QStringLiteral("h264_videotoolbox"),
+        QStringLiteral("hevc_vaapi")
+    };
+
+    EXPECT_EQ(capabilities.preferredH264Encoder(), QStringLiteral("h264_videotoolbox"));
+    EXPECT_EQ(capabilities.preferredHevcEncoder(), QStringLiteral("hevc_vaapi"));
+}
+
+TEST(HardwareCapabilitiesTest, SupportsAndFlagsRemainConsistent) {
+    ccos::render::HardwareCapabilities capabilities;
+    capabilities.encoders = {
+        QStringLiteral("h264_nvenc"),
+        QStringLiteral("hevc_nvenc"),
+        QStringLiteral("h264_qsv")
+    };
+    capabilities.hasNvidia = true;
+    capabilities.hasIntel = true;
+
+    EXPECT_TRUE(capabilities.supports(QStringLiteral("h264_nvenc")));
+    EXPECT_TRUE(capabilities.supports(QStringLiteral("hevc_nvenc")));
+    EXPECT_FALSE(capabilities.supports(QStringLiteral("h264_amf")));
+    EXPECT_EQ(capabilities.preferredH264Encoder(), QStringLiteral("h264_nvenc"));
+    EXPECT_EQ(capabilities.preferredHevcEncoder(), QStringLiteral("hevc_nvenc"));
 }
