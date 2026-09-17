@@ -94,26 +94,26 @@ public:
 
     // YouTube Data API v3
     void searchYouTube(const QString& query, const QString& order = "relevance",
-                       std::function<void(const QVector<SocialVideo>&)> callback);
+                       std::function<void(const QVector<SocialVideo>&)> callback = {});
     void getYouTubeVideoDetails(const QString& videoId,
                                 std::function<void(const SocialVideo&)> callback);
     void getYouTubeChannelVideos(const QString& channelId,
                                  std::function<void(const QVector<SocialVideo>&)> callback);
     void getYouTubeTrending(const QString& regionCode = "US",
-                            std::function<void(const QVector<SocialVideo>&)> callback);
+                            std::function<void(const QVector<SocialVideo>&)> callback = {});
 
     // Vimeo API
     void searchVimeo(const QString& query, const QString& sort = "relevant",
-                     std::function<void(const QVector<SocialVideo>&)> callback);
+                     std::function<void(const QVector<SocialVideo>&)> callback = {});
     void getVimeoVideoDetails(const QString& videoId,
                               std::function<void(const SocialVideo&)> callback);
     void getVimeoStaffPicks(std::function<void(const QVector<SocialVideo>&)> callback);
 
     // Giphy API
     void searchGifs(const QString& query, const QString& rating = "g",
-                    std::function<void(const QVector<GifAsset>&)> callback);
+                    std::function<void(const QVector<GifAsset>&)> callback = {});
     void getTrendingGifs(int limit = 25,
-                         std::function<void(const QVector<GifAsset>&)> callback);
+                         std::function<void(const QVector<GifAsset>&)> callback = {});
     void getStickerPack(const QString& packId,
                         std::function<void(const QVector<GifAsset>&)> callback);
     void translateGif(const QString& searchTerm,
@@ -121,24 +121,24 @@ public:
 
     // Tenor API
     void searchTenor(const QString& query, const QString& mediaFilter = "gif",
-                     std::function<void(const QVector<GifAsset>&)> callback);
+                     std::function<void(const QVector<GifAsset>&)> callback = {});
     void getTenorTrending(int limit = 25,
-                          std::function<void(const QVector<GifAsset>&)> callback);
+                          std::function<void(const QVector<GifAsset>&)> callback = {});
     void getTenorCategories(std::function<void(const QStringList&)> callback);
 
     // Reddit API (sin autenticación para lectura pública)
     void searchReddit(const QString& subreddit, const QString& query,
                       std::function<void(const QVector<SocialPost>&)> callback);
     void getHotPosts(const QString& subreddit, int limit = 25,
-                     std::function<void(const QVector<SocialPost>&)> callback);
+                     std::function<void(const QVector<SocialPost>&)> callback = {});
     void getTopPosts(const QString& subreddit, const QString& timeframe = "day",
-                     std::function<void(const QVector<SocialPost>&)> callback);
+                     std::function<void(const QVector<SocialPost>&)> callback = {});
 
     // Twitch API (requiere OAuth)
     void searchTwitchChannels(const QString& query,
                               std::function<void(const QVector<StreamInfo>&)> callback);
     void getTopStreams(int limit = 10,
-                       std::function<void(const QVector<StreamInfo>&)> callback);
+                       std::function<void(const QVector<StreamInfo>&)> callback = {});
     void getStreamInfo(const QString& login,
                        std::function<void(const StreamInfo&)> callback);
     void getGameStreams(const QString& gameId,
@@ -148,7 +148,7 @@ public:
     QString extractVideoId(const QString& url, const QString& platform);
     QString generateEmbedCode(const SocialVideo& video, int width = 640, int height = 360);
 
-signals:
+Q_SIGNALS:
     void videosReady(const QVector<SocialVideo>&);
     void postReady(const QVector<SocialPost>&);
     void gifsReady(const QVector<GifAsset>&);
