@@ -227,6 +227,7 @@ if(CCOS_BUILD_TESTS)
         tests/unit/core/JobSystemSmokeTest.cpp
         tests/unit/core/ProcessRunnerTest.cpp
         tests/unit/core/PipelineGraphTest.cpp
+        tests/unit/core/AIToolingSafetyTest.cpp
         tests/unit/render/RenderGraphSafetyTest.cpp
         tests/unit/api/CreativeMediaApiTest.cpp
         tests/unit/core/MitFoundationSmokeTest.cpp
