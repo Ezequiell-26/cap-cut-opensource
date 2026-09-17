@@ -174,7 +174,7 @@ public:
     [[nodiscard]] int activeJobCount() const;
     [[nodiscard]] int queuedJobCount() const;
 
-signals:
+Q_SIGNALS:
     void jobEnqueued(const QString& jobId, JobType type);
     void jobStarted(const QString& jobId);
     void jobProgressUpdated(const QString& jobId, double progress);
@@ -185,7 +185,7 @@ signals:
     void jobResumed(const QString& jobId);
     void jobRetrying(const QString& jobId, int attempt);
 
-private slots:
+private Q_SLOTS:
     void processNextJobs();
     void onJobFinished(const QString& jobId, const QVariant& result, const JobError& error);
 
