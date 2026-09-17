@@ -193,6 +193,7 @@ if(CCOS_BUILD_TESTS)
         tests/text/SubtitleParserTests.cpp
         tests/unit/core/JobSystemSmokeTest.cpp
         tests/unit/core/ProcessRunnerTest.cpp
+        tests/unit/render/RenderGraphSafetyTest.cpp
     )
 
     target_link_libraries(ccos_tests PRIVATE
