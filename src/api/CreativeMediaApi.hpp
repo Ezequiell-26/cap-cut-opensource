@@ -2,9 +2,14 @@
 
 #include <QObject>
 #include <QString>
+#include <QStringList>
 #include <QVector>
 
 #include <functional>
+
+class QJsonDocument;
+class QNetworkAccessManager;
+class QUrl;
 
 namespace ccos::api {
 
@@ -66,7 +71,7 @@ private:
     static QVector<CreativeMediaItem> parseWikimedia(const QJsonDocument& document,
                                                       CreativeMediaKind kind);
 
-    class QNetworkAccessManager* networkManager_ = nullptr;
+    QNetworkAccessManager* networkManager_ = nullptr;
 };
 
 } // namespace ccos::api
