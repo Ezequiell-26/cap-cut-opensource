@@ -76,8 +76,7 @@ set(CCOS_SOURCES
     src/render/TextComposer.cpp
     src/render/HardwareCapabilities.cpp
     src/render/RenderExecutor.cpp
-    
-    # Preview Engine (FASE 11)
+
     src/preview/cache/FrameCache.cpp
     src/preview/pipeline/PreviewPipeline.cpp
 )
@@ -169,6 +168,7 @@ if(CCOS_BUILD_TESTS)
         tests/core/TimeTests.cpp
         tests/core/CommandStackTests.cpp
         tests/project/ProjectTests.cpp
+        tests/project/ProjectIdentityPersistenceTests.cpp
         tests/project/ProjectClipPropertiesTests.cpp
         tests/timeline/TimelineTests.cpp
         tests/timeline/TimelineEditorTests.cpp
