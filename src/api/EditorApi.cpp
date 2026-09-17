@@ -9,6 +9,7 @@
 #include <QFileInfo>
 #include <QJsonArray>
 
+#include <algorithm>
 #include <cmath>
 #include <limits>
 
