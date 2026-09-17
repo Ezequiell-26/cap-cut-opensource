@@ -14,15 +14,15 @@ jobs:
           - os: ubuntu-24.04
             host: linux
             arch: linux_gcc_64
-            package: TGZ
+            generator: TGZ
           - os: windows-2022
             host: windows
             arch: win64_msvc2022_64
-            package: ZIP
+            generator: NSIS
           - os: macos-14
             host: mac
             arch: clang_64
-            package: TGZ
+            generator: DragNDrop
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -36,8 +36,9 @@ jobs:
           arch: ${{ matrix.arch }}
           modules: 'qtmultimedia;qtmultimediawidgets'
           cache: true
+          tools: 'tools_ifw_5.15.2'
 
-      - name: Install build tools
+      - name: Install build tools (Linux)
         if: startsWith(matrix.os, 'ubuntu')
         run: sudo apt-get update && sudo apt-get install -y cmake ninja-build
 
@@ -56,19 +57,26 @@ jobs:
       - name: Build
         run: cmake --build build --parallel
 
+      - name: Bundle Qt runtime (Windows)
+        if: startsWith(matrix.os, 'windows')
+        shell: pwsh
+        run: |
+          windeployqt --release --compiler-runtime --multimedia build\ccos_editor.exe
+
+      - name: Bundle Qt runtime (macOS)
+        if: startsWith(matrix.os, 'macos')
+        run: |
+          macdeployqt build/ccos_editor.app -verbose=1
+
       - name: Package
-        run: cpack --config build/CPackConfig.cmake -G "${{ matrix.package }}"
+        run: cpack --config build/CPackConfig.cmake -G "${{ matrix.generator }}"
 
       - name: Upload package
         uses: actions/upload-artifact@v4
         with:
           name: CCOS-${{ matrix.os }}
-          path: build/*.zip
-          if-no-files-found: ignore
-
-      - name: Upload TGZ package
-        uses: actions/upload-artifact@v4
-        with:
-          name: CCOS-${{ matrix.os }}-tgz
-          path: build/*.tar.gz
+          path: |
+            build/*.exe
+            build/*.dmg
+            build/*.tar.gz
           if-no-files-found: ignore
