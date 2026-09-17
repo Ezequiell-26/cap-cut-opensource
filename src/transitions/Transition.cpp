@@ -3,7 +3,7 @@
 namespace ccos::transitions {
 QString Transition::ffmpegName() const {
     switch (type_) {
-    case TransitionType::Cut: return QStringLiteral("cut");
+    case TransitionType::Cut: return QStringLiteral("fade");
     case TransitionType::Fade: return QStringLiteral("fade");
     case TransitionType::Dissolve: return QStringLiteral("fade");
     case TransitionType::DipToBlack: return QStringLiteral("fadeblack");
@@ -16,8 +16,7 @@ QString Transition::ffmpegName() const {
 
 QString Transition::ffmpegFilter(double durationSeconds, double offsetSeconds) const {
     if (type_ == TransitionType::Cut) return {};
-    const QString name = ffmpegName();
-    return QStringLiteral("%1=transition=%2:duration=%3:offset=%4")
-        .arg(name).arg(name, 0, 'f', 3).arg(durationSeconds, 0, 'f', 3).arg(offsetSeconds, 0, 'f', 3);
+    return QStringLiteral("xfade=transition=%1:duration=%2:offset=%3")
+        .arg(ffmpegName()).arg(durationSeconds, 0, 'f', 3).arg(offsetSeconds, 0, 'f', 3);
 }
 }
