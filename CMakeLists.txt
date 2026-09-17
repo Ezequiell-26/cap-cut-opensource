@@ -76,6 +76,7 @@ set(CCOS_SOURCES
     src/plugins/PluginManager.cpp
     src/render/graph/RenderGraph.cpp
     src/render/RenderManager.cpp
+    src/render/ExportSettings.cpp
     src/render/FfmpegExporter.cpp
     src/render/TimelineExporter.cpp
     src/render/TimelineCompositor.cpp
@@ -199,6 +200,7 @@ if(CCOS_BUILD_TESTS)
         tests/unit/core/PipelineGraphTest.cpp
         tests/unit/core/AIToolingSafetyTest.cpp
         tests/unit/render/RenderGraphSafetyTest.cpp
+        tests/unit/render/ExportSettingsTest.cpp
         tests/unit/api/CreativeMediaApiTest.cpp
         tests/unit/core/MitFoundationSmokeTest.cpp
         tests/unit/api/NasaMediaApiTest.cpp
