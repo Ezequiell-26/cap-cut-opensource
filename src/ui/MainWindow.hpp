@@ -12,6 +12,8 @@ class QAudioOutput;
 class QTimer;
 class QCloseEvent;
 
+namespace ccos::render { class RenderExecutor; }
+
 namespace ccos::ui {
 class MainWindow final : public QMainWindow {
     Q_OBJECT
@@ -29,6 +31,8 @@ private Q_SLOTS:
     void undo();
     void redo();
     void autosave();
+    void exportTimeline();
+    void cancelRender();
 
 protected:
     void closeEvent(QCloseEvent* event) override;
@@ -53,5 +57,6 @@ private:
     QMediaPlayer* player_ = nullptr;
     QAudioOutput* audioOutput_ = nullptr;
     QTimer* autosaveTimer_ = nullptr;
+    ccos::render::RenderExecutor* renderExecutor_ = nullptr;
 };
 }
