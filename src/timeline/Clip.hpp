@@ -37,6 +37,9 @@ public:
     TransformState& transform() noexcept { return transform_; }
     [[nodiscard]] const QStringList& effects() const noexcept { return effects_; }
     QStringList& effects() noexcept { return effects_; }
+    [[nodiscard]] const QString& transitionInId() const noexcept { return transitionInId_; }
+    [[nodiscard]] qint64 transitionInDurationMs() const noexcept { return transitionInDurationMs_; }
+    void setTransitionIn(QString id, qint64 durationMs) { transitionInId_ = std::move(id); transitionInDurationMs_ = std::max<qint64>(0, durationMs); }
     void setSpeed(double value) noexcept { speed_ = value > 0.0 ? value : 1.0; }
     void setStart(ccos::core::Time value) noexcept { start_ = value; }
     void setDuration(ccos::core::Time value) noexcept { duration_ = value; sourceOut_ = sourceIn_ + value; }
@@ -53,5 +56,7 @@ private:
     double speed_ = 1.0;
     TransformState transform_;
     QStringList effects_;
+    QString transitionInId_ = QStringLiteral("cut");
+    qint64 transitionInDurationMs_ = 0;
 };
 }
