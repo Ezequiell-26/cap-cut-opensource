@@ -35,7 +35,11 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends cmake ninja-build python3 python3-pip python3-venv git ca-certificates
+          sudo apt-get install -y --no-install-recommends cmake ninja-build python3 python3-pip python3-venv git ca-certificates clang-tools
+          scan_deps="$(find /usr/lib/llvm-* /usr/bin -type f -name clang-scan-deps 2>/dev/null | sort -V | tail -n 1)"
+          test -n "$scan_deps"
+          sudo ln -sf "$scan_deps" /usr/local/bin/clang-scan-deps
+          clang-scan-deps --version
 
       - name: Install Emscripten SDK
         shell: bash
@@ -77,6 +81,7 @@ jobs:
           test -d "$QT_HOST_PATH"
           source "$CCOS_EMSDK_DIR/emsdk_env.sh"
           emcc --version
+          clang-scan-deps --version
 
       - name: Configure WebAssembly
         shell: bash
