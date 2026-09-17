@@ -21,7 +21,6 @@ bool TimelineCompositor::build(const ccos::project::Project& project,
                                QString& audioMap,
                                QString* error) {
     inputs.clear(); filterComplex.clear(); videoMap.clear(); audioMap.clear();
-    bool haveVideo = false;
     int inputIndex = 0;
     QVector<VideoLayer> videoLayers;
     QStringList audioLabels;
@@ -35,8 +34,8 @@ bool TimelineCompositor::build(const ccos::project::Project& project,
             }
             inputs << asset->path();
             const double speed = clip.speed() > 0.0 ? clip.speed() : 1.0;
-            const QString v = QStringLiteral("v%1").arg(inputIndex);
             if (track.type() == ccos::timeline::TrackType::Video) {
+                const QString v = QStringLiteral("v%1").arg(inputIndex);
                 QString vf = QStringLiteral("[%1:v]trim=start=%2:end=%3,setpts=(PTS-STARTPTS)/%4,scale=iw*%5:ih*%6,rotate=%7*PI/180:fillcolor=black@0")
                     .arg(inputIndex).arg(timeText(clip.sourceIn())).arg(timeText(clip.sourceOut())).arg(speed)
                     .arg(clip.transform().scaleX).arg(clip.transform().scaleY).arg(clip.transform().rotation);
@@ -46,32 +45,32 @@ bool TimelineCompositor::build(const ccos::project::Project& project,
                 if (opacity < 0.999) vf += QStringLiteral(",colorchannelmixer=aa=%1").arg(opacity, 0, 'f', 3);
                 for (const auto& effect : clip.effects()) {
                     const QString f = ccos::effects::BuiltinEffects::ffmpegFilter(effect);
-                    if (!f.isEmpty()) vf += ',' + f;
+                    if (!f.isEmpty()) vf += QStringLiteral(",") + f;
                 }
                 vf += QStringLiteral(",setpts=PTS+%1/TB[%2]").arg(timeText(clip.start())).arg(v);
-                filterComplex += vf + ';';
+                filterComplex += vf + QLatin1Char(';');
                 videoLayers.push_back({v, clip.transform().x, clip.transform().y});
-                haveVideo = true;
             }
             if (asset->metadata().audioChannels > 0 || !asset->metadata().audioCodec.isEmpty()) {
                 QString af = QStringLiteral("[%1:a]atrim=start=%2:end=%3,asetpts=PTS-STARTPTS")
                     .arg(inputIndex).arg(timeText(clip.sourceIn())).arg(timeText(clip.sourceOut()));
                 if (speed != 1.0) {
                     double s = speed;
-                    while (s > 2.0) { af += ",atempo=2.0"; s /= 2.0; }
-                    while (s < 0.5) { af += ",atempo=0.5"; s /= 0.5; }
+                    while (s > 2.0) { af += QStringLiteral(",atempo=2.0"); s /= 2.0; }
+                    while (s < 0.5) { af += QStringLiteral(",atempo=0.5"); s /= 0.5; }
                     af += QStringLiteral(",atempo=%1").arg(s, 0, 'f', 6);
                 }
                 const qint64 delay = static_cast<qint64>(clip.start().seconds() * 1000.0);
                 af += QStringLiteral(",adelay=%1|%1[%2]").arg(delay).arg(QStringLiteral("a%1").arg(inputIndex));
-                filterComplex += af + ';';
-                audioLabels << QStringLiteral("[%1]").arg(QStringLiteral("a%1").arg(inputIndex));
+                filterComplex += af + QLatin1Char(';');
+                audioLabels << QStringLiteral("[a%1]").arg(inputIndex);
             }
             ++inputIndex;
         }
     }
 
-    filterComplex += QStringLiteral("color=c=black:s=%1x%2:r=%3:d=86400[canvas];").arg(settings.width).arg(settings.height).arg(settings.fps, 0, 'f', 3);
+    filterComplex += QStringLiteral("color=c=black:s=%1x%2:r=%3:d=86400[canvas];")
+        .arg(settings.width).arg(settings.height).arg(settings.fps, 0, 'f', 3);
     QString current = QStringLiteral("[canvas]");
     int layer = 0;
     for (const auto& item : videoLayers) {
@@ -81,9 +80,8 @@ bool TimelineCompositor::build(const ccos::project::Project& project,
         current = QStringLiteral("[%1]").arg(out);
     }
     videoMap = current;
-    haveVideo = haveVideo || videoLayers.isEmpty();
 
-    if (audioLabels.empty()) {
+    if (audioLabels.isEmpty()) {
         filterComplex += QStringLiteral("anullsrc=channel_layout=stereo:sample_rate=48000:d=86400[aout];");
         audioMap = QStringLiteral("[aout]");
     } else if (audioLabels.size() == 1) {
@@ -92,7 +90,6 @@ bool TimelineCompositor::build(const ccos::project::Project& project,
         filterComplex += audioLabels.join(QString()) + QStringLiteral("amix=inputs=%1:duration=longest:dropout_transition=0:normalize=1[aout];").arg(audioLabels.size());
         audioMap = QStringLiteral("[aout]");
     }
-    Q_UNUSED(haveVideo);
     return true;
 }
 }
