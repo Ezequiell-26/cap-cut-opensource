@@ -1,15 +1,15 @@
 #pragma once
 /**
  * @file PremiumStockApi.hpp
- * @brief APIs de stock premium gratuito (Mixkit, Coverr, Tuna, Bensound)
- * 
- * APIs integradas con licencias MIT/CC0 para uso comercial sin atribución:
- * - Mixkit: Videos, música, SFX, plantillas After Effects
- * - Coverr: Videos de fondo 4K
- * - Tuna: Música ambient por categoría
- * - Bensound: Música royalty-free
- * - Pixabay Video: Videos HD/4K
- * - Videvo: Clips y motion graphics
+ * @brief External stock/media provider adapters.
+ *
+ * Providers have independent APIs, licenses, attribution rules and terms.
+ * CCOS stores provider/license metadata but does not assume that any returned
+ * asset is MIT, CC0, public domain or attribution-free.
+ *
+ * Current adapter families include Mixkit, Coverr, Pixabay, Videvo, Tuna,
+ * Bensound, Mazwai and Life of Vids. Availability and API contracts must be
+ * treated as external-provider capabilities and validated at runtime.
  */
 
 #include <QObject>
@@ -59,7 +59,7 @@ struct MotionGraphic {
     QString title;
     QString previewUrl;
     QString downloadUrl;
-    QString type; // "after-effects", "premiere", "davinci"
+    QString type;
     QString license;
 };
 
@@ -70,41 +70,33 @@ public:
     explicit PremiumStockApi(QObject* parent = nullptr);
     ~PremiumStockApi() override;
 
-    // Mixkit API (gratis, sin key requerida)
     void searchVideos(const QString& query, int page = 1,
                       std::function<void(const QVector<StockVideo>&)> callback);
     void searchMusic(const QString& genre, std::function<void(const QVector<StockMusic>&)> callback);
     void searchSFX(const QString& category, std::function<void(const QVector<StockSFX>&)> callback);
     void getMotionGraphics(std::function<void(const QVector<MotionGraphic>&)> callback);
 
-    // Coverr API (videos de fondo)
     void searchCoverrVideos(const QString& query, int page = 1,
                             std::function<void(const QVector<StockVideo>&)> callback);
     void getTrendingVideos(std::function<void(const QVector<StockVideo>&)> callback);
     void getVerticalVideos(std::function<void(const QVector<StockVideo>&)> callback);
 
-    // Pixabay Video API
     void searchPixabayVideos(const QString& query, const QString& apiKey, int page = 1,
                              std::function<void(const QVector<StockVideo>&)> callback);
 
-    // Videvo API (requiere registro gratis)
     void searchVidevo(const QString& query, const QString& apiKey,
                       std::function<void(const QVector<StockVideo>&)> callback);
 
-    // Tuna API (música ambient de Spotify)
     void getAmbientMusic(const QString& activity,
                          std::function<void(const QVector<StockMusic>&)> callback);
 
-    // Bensound API (música royalty-free)
     void searchBensound(const QString& query, const QString& apiKey,
                         std::function<void(const QVector<StockMusic>&)> callback);
 
-    // Mazwai (videos cinematográficos)
     void getMazwaiVideos(const QString& category,
                          std::function<void(const QVector<StockVideo>&)> callback);
 
-    // Life of Vids (videos y loops gratis)
-    void getLifeOfVids(const QString& type, // "video" o "loop"
+    void getLifeOfVids(const QString& type,
                        std::function<void(const QVector<StockVideo>&)> callback);
 
 signals:
@@ -116,7 +108,7 @@ signals:
 
 private:
     QNetworkAccessManager* m_networkManager;
-    
+
     void parseMixkitVideos(const QByteArray& data,
                            std::function<void(const QVector<StockVideo>&)> callback);
     void parseMixkitMusic(const QByteArray& data,
