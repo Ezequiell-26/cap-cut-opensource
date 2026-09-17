@@ -35,6 +35,7 @@ add_library(ccos_core
     src/timeline/Keyframe.cpp
     src/render/RenderManager.cpp
     src/render/FfmpegExporter.cpp
+    src/render/TimelineExporter.cpp
 )
 
 target_include_directories(ccos_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
