@@ -56,6 +56,8 @@ add_library(ccos_core
     src/core/Time.cpp
     src/core/Uuid.cpp
     src/core/CommandStack.cpp
+    src/core/ProcessRunner.cpp
+    src/core/JobSystem.cpp
     
     # Project
     src/project/Project.cpp
