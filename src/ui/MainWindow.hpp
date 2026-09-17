@@ -34,7 +34,6 @@ private Q_SLOTS:
     void exportTimeline();
     void cancelRender();
     void relinkMissingMedia();
-    bool selectedTimelineClip(int* trackIndex, int* clipIndex) const;
     void splitSelectedClip();
     void deleteSelectedClip();
     void rippleDeleteSelectedClip();
@@ -50,6 +49,7 @@ protected:
     void closeEvent(QCloseEvent* event) override;
 
 private:
+    bool selectedTimelineClip(int* trackIndex, int* clipIndex) const;
     void buildUi();
     void buildMenus();
     void refreshMediaBin();
