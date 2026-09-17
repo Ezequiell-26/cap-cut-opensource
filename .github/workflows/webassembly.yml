@@ -14,6 +14,8 @@ env:
   QT_VERSION: '6.8.3'
   EM_VERSION: '3.1.56'
   QT_WASM_ARCH: 'wasm_singlethread'
+  QT_PREFIX: '${{ github.workspace }}/.qt'
+  EMSDK_ROOT: '${{ github.workspace }}/.emsdk'
 
 concurrency:
   group: ccos-webassembly-${{ github.workflow }}-${{ github.ref }}
@@ -30,46 +32,65 @@ jobs:
 
       - name: Install build tools
         run: |
+          set -euo pipefail
           sudo apt-get update -qq
-          sudo apt-get install -y cmake ninja-build python3 python3-pip
+          sudo apt-get install -y --no-install-recommends cmake ninja-build python3 python3-pip git ca-certificates
 
-      - name: Setup Emscripten ${{ env.EM_VERSION }}
-        uses: emscripten-core/setup-emsdk@667eb33f24e84e7f362c16d8d7fff0629a73e15e
-        with:
-          version: ${{ env.EM_VERSION }}
-          actions-cache-folder: emsdk-cache
-
-      - name: Verify Emscripten
-        run: emcc --version
-
-      - name: Install Qt ${{ env.QT_VERSION }} for WebAssembly
-        uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730
-        with:
-          version: ${{ env.QT_VERSION }}
-          host: all_os
-          target: wasm
-          arch: ${{ env.QT_WASM_ARCH }}
-          modules: qtmultimedia
-          cache: true
-          cache-key-prefix: ccos-qt-wasm
-
-      - name: Verify Qt WebAssembly toolchain
+      - name: Install Emscripten SDK
         shell: bash
         run: |
           set -euo pipefail
-          echo "QT_ROOT_DIR=${QT_ROOT_DIR:-unset}"
-          echo "QT_HOST_PATH=${QT_HOST_PATH:-unset}"
-          test -n "${QT_ROOT_DIR:-}"
+          if [ ! -d "$EMSDK_ROOT" ]; then
+            git clone --depth 1 --branch "$EM_VERSION" https://github.com/emscripten-core/emsdk.git "$EMSDK_ROOT"
+          fi
+          "$EMSDK_ROOT/emsdk" install "$EM_VERSION"
+          "$EMSDK_ROOT/emsdk" activate "$EM_VERSION"
+          source "$EMSDK_ROOT/emsdk_env.sh"
+          echo "EMSDK=$EMSDK_ROOT" >> "$GITHUB_ENV"
+          echo "$EMSDK_ROOT" >> "$GITHUB_PATH"
+          echo "$EMSDK_ROOT/upstream/emscripten" >> "$GITHUB_PATH"
+          echo "EM_CACHE=$EMSDK_ROOT/upstream/emscripten/cache" >> "$GITHUB_ENV"
+          emcc --version
+
+      - name: Install Qt for WebAssembly
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check --no-cache-dir 'aqtinstall>=3.3,<3.4'
+          python3 -m aqt install-qt all_os wasm "$QT_VERSION" "$QT_WASM_ARCH" \
+            --autodesktop \
+            --modules qtmultimedia \
+            --outputdir "$QT_PREFIX"
+          echo "QT_ROOT_DIR=$QT_PREFIX/$QT_VERSION/$QT_WASM_ARCH" >> "$GITHUB_ENV"
+          echo "QT_HOST_PATH=$QT_PREFIX/$QT_VERSION/gcc_64" >> "$GITHUB_ENV"
+          echo "$QT_PREFIX/$QT_VERSION/$QT_WASM_ARCH/bin" >> "$GITHUB_PATH"
+
+      - name: Verify Qt/Emscripten toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
           test -f "$QT_ROOT_DIR/lib/cmake/Qt6/qt.toolchain.cmake"
+          test -x "$QT_ROOT_DIR/bin/qt-cmake" || test -x "$QT_ROOT_DIR/bin/qt-cmake.bat"
           test -n "${QT_HOST_PATH:-}"
-          echo "Qt WASM kit: $QT_ROOT_DIR"
-          echo "Qt host kit: $QT_HOST_PATH"
+          test -d "$QT_HOST_PATH"
+          source "$EMSDK/emsdk_env.sh"
+          emcc --version
+          echo "Qt WASM: $QT_ROOT_DIR"
+          echo "Qt host: $QT_HOST_PATH"
 
       - name: Configure WebAssembly
-        run: cmake --preset web
+        shell: bash
+        run: |
+          set -euo pipefail
+          source "$EMSDK/emsdk_env.sh"
+          cmake --preset web
 
       - name: Build WebAssembly
-        run: cmake --build --preset web --parallel 2
+        shell: bash
+        run: |
+          set -euo pipefail
+          source "$EMSDK/emsdk_env.sh"
+          cmake --build --preset web --parallel 2
 
       - name: Assemble static web bundle
         shell: bash
@@ -96,10 +117,7 @@ jobs:
             cp web/vercel.json web-dist/vercel.json
           fi
 
-          cat > web-dist/.nojekyll <<'EOF'
-
-EOF
-
+          printf '\n' > web-dist/.nojekyll
           test -f web-dist/index.html
           test -f web-dist/ccos-editor.wasm
 
