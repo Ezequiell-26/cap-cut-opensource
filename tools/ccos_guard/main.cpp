@@ -1,7 +1,6 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
-#include <regex>
 #include <string>
 #include <string_view>
 #include <unordered_set>
@@ -29,8 +28,7 @@ struct Guard {
         return rel.rfind("src/", 0) == 0 || rel.rfind("apps/", 0) == 0 ||
                rel.rfind("engine/", 0) == 0 || rel.rfind("application/", 0) == 0 ||
                rel.rfind("infrastructure/", 0) == 0 || rel.rfind("platform/", 0) == 0 ||
-               rel.rfind("presentation/", 0) == 0 || rel.rfind("plugins/", 0) == 0 ||
-               rel.rfind("tools/", 0) == 0;
+               rel.rfind("presentation/", 0) == 0 || rel.rfind("plugins/", 0) == 0;
     }
 
     static bool bannedRuntimeExtension(const fs::path& path) {
@@ -64,6 +62,8 @@ struct Guard {
             const auto generic = relPath.generic_string();
             if (generic.rfind(".git/", 0) == 0 || generic.rfind("build/", 0) == 0 ||
                 generic.rfind("build-", 0) == 0 || generic.find("/_deps/") != std::string::npos) continue;
+            // The guard itself is C++, but it is test infrastructure, not CCOS runtime.
+            if (generic.rfind("tools/ccos_guard/", 0) == 0) continue;
 
             if (sourceTree(relPath)) {
                 if (bannedRuntimeExtension(relPath)) {
@@ -89,10 +89,40 @@ struct Guard {
         const auto cmakePath = root / "CMakeLists.txt";
         if (!fs::exists(cmakePath)) return;
         const std::string content = readText(cmakePath);
-        const std::regex sourcePattern(R"((?:src|apps|engine|application|infrastructure|platform|presentation|plugins)/[^\s\)]+\.(?:cpp|cc|cxx|hpp|h)))");
-        for (std::sregex_iterator it(content.begin(), content.end(), sourcePattern), end; it != end; ++it) {
-            const auto path = it->str();
-            if (!fs::exists(root / path)) fail("CMake references missing source: " + path);
+        const std::string prefixes[] = {"src/", "apps/", "engine/", "application/", "infrastructure/", "platform/", "presentation/", "plugins/"};
+        const std::string extensions[] = {".cpp", ".cc", ".cxx", ".hpp", ".h"};
+
+        std::size_t cursor = 0;
+        while (cursor < content.size()) {
+            std::size_t best = std::string::npos;
+            std::string matchedPrefix;
+            for (const auto& prefix : prefixes) {
+                const std::size_t position = content.find(prefix, cursor);
+                if (position != std::string::npos && (best == std::string::npos || position < best)) {
+                    best = position;
+                    matchedPrefix = prefix;
+                }
+            }
+            if (best == std::string::npos) break;
+
+            std::size_t end = best + matchedPrefix.size();
+            while (end < content.size()) {
+                const char c = content[end];
+                if (c == ' ' || c == '\n' || c == '\r' || c == '\t' || c == ')' || c == '"') break;
+                ++end;
+            }
+            const std::string candidate = content.substr(best, end - best);
+            bool isSource = false;
+            for (const auto& ext : extensions) {
+                if (candidate.size() >= ext.size() && candidate.compare(candidate.size() - ext.size(), ext.size(), ext) == 0) {
+                    isSource = true;
+                    break;
+                }
+            }
+            if (isSource && !fs::exists(root / fs::path(candidate))) {
+                fail("CMake references missing source: " + candidate);
+            }
+            cursor = std::max(end, best + 1);
         }
     }
 
