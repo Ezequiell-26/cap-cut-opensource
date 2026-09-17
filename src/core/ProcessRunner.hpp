@@ -1,18 +1,22 @@
 #pragma once
 
 #include <QObject>
-#include <QProcess>
+#include <QByteArray>
 #include <QFuture>
 #include <QFutureWatcher>
+#include <QList>
 #include <QMutex>
+#include <QProcess>
+#include <QProcessEnvironment>
 #include <QSharedPointer>
+#include <QString>
 #include <QStringList>
+
 #include <atomic>
 #include <chrono>
 
 namespace ccos::core {
 
-/** Result of one external process execution. */
 struct ProcessResult {
     int exitCode = -1;
     QProcess::ExitStatus exitStatus = QProcess::CrashExit;
@@ -34,7 +38,6 @@ struct ProcessResult {
     [[nodiscard]] QString errorMessage() const;
 };
 
-/** Configuration for safe, argument-list based process execution. */
 struct ProcessConfig {
     QString executable;
     QStringList arguments;
@@ -46,17 +49,10 @@ struct ProcessConfig {
     bool readStandardError = true;
     qint64 maxOutputSize = 10 * 1024 * 1024;
 
-    // Metadata for diagnostics and future policy enforcement.
     enum class RiskLevel { Low, Medium, High };
     RiskLevel riskLevel = RiskLevel::Low;
 };
 
-/**
- * Runs external tools without shell parsing.
- *
- * The worker path uses bounded waits and a cooperative cancellation token.
- * `executeSync()` is intentionally available only for non-UI worker contexts.
- */
 class ProcessRunner final : public QObject {
     Q_OBJECT
 
@@ -68,7 +64,6 @@ public:
     [[nodiscard]] ProcessResult executeSync(const ProcessConfig& config);
 
     void cancelAll();
-
     [[nodiscard]] static bool validateExecutable(const QString& executable);
 
 signals:
@@ -86,8 +81,6 @@ private:
     static ProcessResult runProcess(const ProcessConfig& config, const ControlPtr& control);
     static void appendBounded(QByteArray& destination, const QByteArray& data, qint64 maxSize,
                               bool& truncated);
-    static QString processErrorText(const ProcessResult& result);
-
     void removeControl(const ControlPtr& control);
 
     mutable QMutex m_mutex;
