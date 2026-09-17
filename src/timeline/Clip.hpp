@@ -45,6 +45,7 @@ public:
     void setStart(ccos::core::Time value) noexcept { start_ = value; }
     void setDuration(ccos::core::Time value) noexcept { duration_ = value; sourceOut_ = sourceIn_ + value; }
     void setSourceRange(ccos::core::Time in, ccos::core::Time out) noexcept;
+    void regenerateId() { id_ = ccos::core::Uuid{}; }
     void addEffect(QString id) { if (!id.isEmpty() && !effects_.contains(id)) effects_.append(std::move(id)); }
     void removeEffect(const QString& id) { effects_.removeAll(id); }
 private:
