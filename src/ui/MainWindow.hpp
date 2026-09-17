@@ -34,6 +34,19 @@ private Q_SLOTS:
     void exportTimeline();
     void cancelRender();
     void relinkMissingMedia();
+#ifdef CCOS_PLATFORM_WEB
+    void installAdvancedTimelineUi();
+    void splitSelectedClip();
+    void deleteSelectedClip();
+    void rippleDeleteSelectedClip();
+    void trimSelectedClipStart();
+    void trimSelectedClipEnd();
+    void nudgeSelectedClipLeft();
+    void nudgeSelectedClipRight();
+    void setSelectedClipSpeed();
+    void addEffectToSelectedClip();
+    void setTransitionOnSelectedClip();
+#endif
 
 protected:
     void closeEvent(QCloseEvent* event) override;
