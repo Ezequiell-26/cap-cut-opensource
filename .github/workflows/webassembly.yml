@@ -26,7 +26,7 @@ jobs:
   build-wasm:
     name: Build CCOS WebAssembly
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 90
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -77,8 +77,6 @@ jobs:
           test -d "$QT_HOST_PATH"
           source "$CCOS_EMSDK_DIR/emsdk_env.sh"
           emcc --version
-          echo "Qt WASM: $QT_ROOT_DIR"
-          echo "Qt host: $QT_HOST_PATH"
 
       - name: Configure WebAssembly
         shell: bash
@@ -94,37 +92,53 @@ jobs:
           source "$CCOS_EMSDK_DIR/emsdk_env.sh"
           cmake --build --preset web --parallel 2
 
+      - name: Prepare browser FFmpeg runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          runtime="$RUNNER_TEMP/ccos-ffmpeg-runtime"
+          rm -rf "$runtime" web-dist
+          mkdir -p "$runtime/ffmpeg" "$runtime/core" web-dist/vendor/ffmpeg web-dist/vendor/ffmpeg-core
+          cd "$runtime"
+          npm pack --silent '@ffmpeg/ffmpeg@0.12.15'
+          npm pack --silent '@ffmpeg/core@0.12.10'
+          mkdir -p ffmpeg/pkg core/pkg
+          tar -xzf ffmpeg-0.12.15.tgz -C ffmpeg/pkg --strip-components=1
+          tar -xzf core-0.12.10.tgz -C core/pkg --strip-components=1
+          cp -R ffmpeg/pkg/dist/esm/. "$GITHUB_WORKSPACE/web-dist/vendor/ffmpeg/"
+          cp -R core/pkg/dist/esm/. "$GITHUB_WORKSPACE/web-dist/vendor/ffmpeg-core/"
+
       - name: Assemble static web bundle
         shell: bash
         run: |
           set -euo pipefail
-          rm -rf web-dist
           mkdir -p web-dist
-
           test -f build/web/ccos-editor.html
           test -f build/web/ccos-editor.js
           test -f build/web/ccos-editor.wasm
-
           cp build/web/ccos-editor.html web-dist/index.html
           cp build/web/ccos-editor.js web-dist/
           cp build/web/ccos-editor.wasm web-dist/
-
-          if [ -f build/web/qtloader.js ]; then
-            cp build/web/qtloader.js web-dist/
-          fi
-
-          find build/web -maxdepth 1 -type f \
-            \( -name 'ccos-editor.*' -o -name '*.worker.js' -o -name 'qtlogo.svg' \) \
-            ! -name 'ccos-editor.html' ! -name 'ccos-editor.js' ! -name 'ccos-editor.wasm' \
-            -exec cp {} web-dist/ \;
-
-          if [ -f web/vercel.json ]; then
-            cp web/vercel.json web-dist/vercel.json
-          fi
-
-          printf '\n' > web-dist/.nojekyll
+          if [ -f build/web/qtloader.js ]; then cp build/web/qtloader.js web-dist/; fi
+          find build/web -maxdepth 1 -type f \( -name 'ccos-editor.*' -o -name '*.worker.js' -o -name 'qtlogo.svg' \) \
+            ! -name 'ccos-editor.html' ! -name 'ccos-editor.js' ! -name 'ccos-editor.wasm' -exec cp {} web-dist/ \;
+          cp web/ccos-web-bridge.js web-dist/ccos-web-bridge.js
+          if [ -f web/vercel.json ]; then cp web/vercel.json web-dist/vercel.json; fi
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('web-dist/index.html')
+          text = path.read_text(encoding='utf-8')
+          tag = '<script src="./ccos-web-bridge.js"></script>'
+          if tag not in text:
+              text = text.replace('<head>', '<head>\n' + tag, 1)
+          path.write_text(text, encoding='utf-8')
+          PY
+          printf '%s\n' 'CCOS WebAssembly bundle' > web-dist/.nojekyll
           test -f web-dist/index.html
           test -f web-dist/ccos-editor.wasm
+          test -f web-dist/vendor/ffmpeg/index.js
+          test -f web-dist/vendor/ffmpeg-core/ffmpeg-core.js
+          test -f web-dist/vendor/ffmpeg-core/ffmpeg-core.wasm
 
       - name: Upload WebAssembly artifact
         uses: actions/upload-artifact@v4
