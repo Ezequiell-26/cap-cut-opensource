@@ -11,6 +11,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(CCOS_BUILD_TESTS "Build unit tests" ON)
+option(CCOS_FETCH_GTEST "Fetch GoogleTest when it is not installed" ON)
 
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC ON)
@@ -68,7 +69,21 @@ install(TARGETS ccos_editor RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} BUNDLE D
 
 if(CCOS_BUILD_TESTS)
     enable_testing()
-    find_package(GTest 1.14 REQUIRED)
+    find_package(GTest 1.14 QUIET)
+    if(NOT GTest_FOUND AND CCOS_FETCH_GTEST)
+        include(FetchContent)
+        set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
+        set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+        FetchContent_Declare(
+            googletest
+            URL https://github.com/google/googletest/archive/refs/tags/v1.14.0.tar.gz
+        )
+        FetchContent_MakeAvailable(googletest)
+    endif()
+    if(NOT TARGET GTest::gtest_main)
+        message(FATAL_ERROR "GoogleTest is required. Install GTest or configure with -DCCOS_FETCH_GTEST=ON.")
+    endif()
+
     add_executable(ccos_tests
         tests/core/TimeTests.cpp
         tests/core/CommandStackTests.cpp
