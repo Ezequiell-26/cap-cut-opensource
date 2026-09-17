@@ -3,6 +3,7 @@
 #include <QString>
 
 namespace ccos::media {
+class MediaCache;
 
 enum class ProxyPreset { Quarter, Half, P720, P1080 };
 
