@@ -100,3 +100,5 @@ This matrix records the planned external building blocks for CCOS. It distinguis
 6. Keep API keys outside projects, logs and crash reports.
 7. Preserve creator, license, attribution and source URLs when importing external media.
 8. Every completed integration must be present on `main`; feature branches must not contain unreconciled completed work.
+
+| ImPlot | MIT | FetchContent | OFF | Technical plots, scopes and diagnostics |
