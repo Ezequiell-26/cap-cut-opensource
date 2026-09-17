@@ -17,21 +17,30 @@ message(STATUS "CCOS: enabling curated MIT C++ foundation dependencies")
 FetchContent_Declare(nlohmann_json GIT_REPOSITORY https://github.com/nlohmann/json.git GIT_TAG v3.12.0 GIT_SHALLOW TRUE)
 FetchContent_Declare(fmt GIT_REPOSITORY https://github.com/fmtlib/fmt.git GIT_TAG 12.2.0 GIT_SHALLOW TRUE)
 FetchContent_Declare(spdlog GIT_REPOSITORY https://github.com/gabime/spdlog.git GIT_TAG v1.17.0 GIT_SHALLOW TRUE)
-FetchContent_Declare(taskflow GIT_REPOSITORY https://github.com/taskflow/taskflow.git GIT_TAG v4.1.0 GIT_SHALLOW TRUE)
 FetchContent_Declare(magic_enum GIT_REPOSITORY https://github.com/Neargye/magic_enum.git GIT_TAG v0.9.8 GIT_SHALLOW TRUE)
 FetchContent_Declare(cpp_httplib GIT_REPOSITORY https://github.com/yhirose/cpp-httplib.git GIT_TAG v0.56.0 GIT_SHALLOW TRUE)
 FetchContent_Declare(glm GIT_REPOSITORY https://github.com/g-truc/glm.git GIT_TAG 1.0.3 GIT_SHALLOW TRUE)
 FetchContent_Declare(tomlplusplus GIT_REPOSITORY https://github.com/marzer/tomlplusplus.git GIT_TAG v3.4.0 GIT_SHALLOW TRUE)
-FetchContent_MakeAvailable(nlohmann_json fmt spdlog taskflow magic_enum cpp_httplib glm tomlplusplus)
+if(NOT EMSCRIPTEN)
+    FetchContent_Declare(taskflow GIT_REPOSITORY https://github.com/taskflow/taskflow.git GIT_TAG v4.1.0 GIT_SHALLOW TRUE)
+endif()
+
+if(EMSCRIPTEN)
+    FetchContent_MakeAvailable(nlohmann_json fmt spdlog magic_enum cpp_httplib glm tomlplusplus)
+else()
+    FetchContent_MakeAvailable(nlohmann_json fmt spdlog taskflow magic_enum cpp_httplib glm tomlplusplus)
+endif()
 
 if(NOT TARGET ccos_mit_foundation)
     add_library(ccos_mit_foundation INTERFACE)
     target_link_libraries(ccos_mit_foundation INTERFACE nlohmann_json::nlohmann_json fmt::fmt spdlog::spdlog glm::glm tomlplusplus::tomlplusplus)
     target_include_directories(ccos_mit_foundation INTERFACE
         ${magic_enum_SOURCE_DIR}/include
-        ${taskflow_SOURCE_DIR}
         ${cpp_httplib_SOURCE_DIR}
     )
+    if(NOT EMSCRIPTEN)
+        target_include_directories(ccos_mit_foundation INTERFACE ${taskflow_SOURCE_DIR})
+    endif()
 endif()
 
 if(CCOS_ENABLE_MIT_MEDIA_3D)
@@ -66,9 +75,6 @@ if(CCOS_ENABLE_MINIAUDIO)
 endif()
 
 if(CCOS_ENABLE_ONNXRUNTIME)
-    # ONNX Runtime is MIT at the top-level repository, but a distribution may
-    # contain additional execution-provider dependencies and licenses. Never
-    # download it implicitly; use an audited local installation.
     find_package(onnxruntime CONFIG REQUIRED)
     if(TARGET onnxruntime::onnxruntime AND NOT TARGET ccos_onnxruntime)
         add_library(ccos_onnxruntime INTERFACE)
