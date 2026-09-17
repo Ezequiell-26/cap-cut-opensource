@@ -87,3 +87,5 @@ The current extension CMake modules fetch only lightweight optional components a
 6. Do not claim an imported asset is MIT merely because its discovery API is free or open source.
 7. For optional professional integrations, require a local audited installation and a minimum supported security version before release.
 8. Run a release-time license scan against the final dependency graph.
+
+| TinyGLTF | glTF/GLB parsing and serialization | MIT | `CCOS_ENABLE_MIT_MEDIA_3D` |
