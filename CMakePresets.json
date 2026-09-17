@@ -46,7 +46,7 @@
     },
     {
       "name": "open-source-extensions",
-      "displayName": "CCOS Extended MIT/Open Source Tooling",
+      "displayName": "CCOS Extended Open Source Tooling",
       "inherits": "debug",
       "binaryDir": "${sourceDir}/build/open-source-extensions",
       "cacheVariables": {
@@ -56,7 +56,9 @@
         "CCOS_ENABLE_MIT_UI_EXTENSIONS": "ON",
         "CCOS_ENABLE_MIT_DIAGNOSTICS": "ON",
         "CCOS_ENABLE_MIT_STORAGE": "ON",
-        "CCOS_ENABLE_MIT_COMPRESSION": "ON"
+        "CCOS_ENABLE_MIT_COMPRESSION": "ON",
+        "CCOS_ENABLE_MIT_UTILITY_EXTENSIONS": "ON",
+        "CCOS_ENABLE_UTF8_HEADER": "ON"
       }
     },
     {
