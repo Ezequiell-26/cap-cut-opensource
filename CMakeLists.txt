@@ -48,6 +48,7 @@ set(CCOS_SOURCES
     src/core/CommandStack.cpp
     src/core/ProcessRunner.cpp
     src/core/JobSystem.cpp
+    src/core/PipelineGraph.cpp
 
     src/project/Project.cpp
     src/project/ProjectSerializer.cpp
@@ -218,6 +219,7 @@ if(CCOS_BUILD_TESTS)
         tests/text/SubtitleParserTests.cpp
         tests/unit/core/JobSystemSmokeTest.cpp
         tests/unit/core/ProcessRunnerTest.cpp
+        tests/unit/core/PipelineGraphTest.cpp
         tests/unit/render/RenderGraphSafetyTest.cpp
         tests/unit/api/CreativeMediaApiTest.cpp
         tests/unit/core/MitFoundationSmokeTest.cpp
