@@ -27,9 +27,10 @@ option(CCOS_ENABLE_OPENCOLORIO "Enable optional OpenColorIO color-management sup
 option(CCOS_ENABLE_MIT_UI_EXTENSIONS "Enable Dear ImGui + ImGuizmo integration" OFF)
 option(CCOS_ENABLE_MIT_DIAGNOSTICS "Enable cpptrace crash/stack diagnostics" OFF)
 option(CCOS_ENABLE_MIT_STORAGE "Enable unordered_dense/date/foonathan memory helpers" OFF)
+option(CCOS_ENABLE_MIT_COMPRESSION "Enable optional libdeflate compression backend" OFF)
 option(CCOS_ENABLE_PRO_TEXT "Use locally audited FreeType + HarfBuzz + libass" OFF)
 option(CCOS_ENABLE_PRO_IMAGE_IO "Use locally audited OpenEXR + OpenImageIO + AVIF/WebP/JXL" OFF)
-option(CCOS_ENABLE_PRO_AUDIO_IO "Use locally audited RtAudio + RtMidi + libsamplerate + SpeexDSP" OFF)
+option(CCOS_ENABLE_PRO_AUDIO_IO "Use locally audited RtAudio + RtMidi + libsamplerate + SpeexDSP + RNNoise + KissFFT" OFF)
 option(CCOS_ENABLE_PRO_CODECS "Use locally audited dav1d + SVT-AV1" OFF)
 option(CCOS_ENABLE_PRO_STORAGE "Use locally audited zstd + lz4 + xxHash + libarchive + libzip" OFF)
 option(CCOS_ENABLE_CULTURAL_MEDIA_API "Build open cultural-heritage media API adapters" ON)
@@ -67,6 +68,7 @@ set(CCOS_SOURCES
     src/core/JobSystem.cpp
     src/core/AITooling.cpp
     src/core/PipelineGraph.cpp
+    src/core/CrashDiagnostics.cpp
     src/project/Project.cpp
     src/project/ProjectSerializer.cpp
     src/project/ProjectSchema.cpp
@@ -239,16 +241,19 @@ if(CCOS_BUILD_TESTS)
         tests/unit/core/ProcessRunnerTest.cpp
         tests/unit/core/PipelineGraphTest.cpp
         tests/unit/core/AIToolingSafetyTest.cpp
+        tests/unit/core/CrashDiagnosticsTest.cpp
         tests/unit/render/RenderGraphSafetyTest.cpp
         tests/unit/render/ExportSettingsTest.cpp
         tests/unit/render/ExportPresetsTest.cpp
         tests/unit/api/EditorApiTest.cpp
         tests/unit/api/CreativeMediaApiTest.cpp
         tests/unit/api/NasaMediaApiTest.cpp
-        tests/unit/api/CulturalMediaApiTest.cpp
         tests/unit/ai/LlamaCppProviderTest.cpp
         tests/unit/core/MitFoundationSmokeTest.cpp
     )
+    if(CCOS_ENABLE_CULTURAL_MEDIA_API)
+        target_sources(ccos_tests PRIVATE tests/unit/api/CulturalMediaApiTest.cpp)
+    endif()
     if(CCOS_ENABLE_LOCAL_AUTOMATION_API)
         target_sources(ccos_tests PRIVATE tests/unit/api/LocalAutomationApiTest.cpp)
     endif()
