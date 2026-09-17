@@ -10,7 +10,8 @@ endif()
 
 message(STATUS "CCOS: enabling curated MIT foundation dependencies")
 
-# Versions are pinned intentionally. Review license files before upgrading.
+# Versions are pinned intentionally. Review the upstream license file and
+# transitive dependencies before upgrading any entry.
 FetchContent_Declare(
     nlohmann_json
     GIT_REPOSITORY https://github.com/nlohmann/json.git
@@ -65,6 +66,7 @@ if(NOT TARGET ccos_mit_foundation)
     target_include_directories(ccos_mit_foundation INTERFACE
         ${magic_enum_SOURCE_DIR}/include
         ${taskflow_SOURCE_DIR}
+        ${cpp_httplib_SOURCE_DIR}
     )
 endif()
 
@@ -76,16 +78,18 @@ if(CCOS_ENABLE_MINIAUDIO)
         GIT_SHALLOW TRUE
     )
     FetchContent_MakeAvailable(miniaudio)
-    add_library(ccos_miniaudio INTERFACE)
-    target_include_directories(ccos_miniaudio INTERFACE ${miniaudio_SOURCE_DIR})
+    if(NOT TARGET ccos_miniaudio)
+        add_library(ccos_miniaudio INTERFACE)
+        target_include_directories(ccos_miniaudio INTERFACE ${miniaudio_SOURCE_DIR})
+    endif()
 endif()
 
 if(CCOS_ENABLE_ONNXRUNTIME)
-    # ONNX Runtime is top-level MIT, but its distributions can contain
-    # additional third-party/execution-provider licenses. Do not download it
-    # implicitly. Point CMAKE_PREFIX_PATH to an audited installation.
+    # ONNX Runtime is MIT at the top-level repository, but a distribution may
+    # contain additional execution-provider dependencies and licenses. Never
+    # download it implicitly; use an audited local installation.
     find_package(onnxruntime CONFIG REQUIRED)
-    if(TARGET onnxruntime::onnxruntime)
+    if(TARGET onnxruntime::onnxruntime AND NOT TARGET ccos_onnxruntime)
         add_library(ccos_onnxruntime INTERFACE)
         target_link_libraries(ccos_onnxruntime INTERFACE onnxruntime::onnxruntime)
     endif()
