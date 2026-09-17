@@ -5,8 +5,16 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ccos-release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   package:
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -34,7 +42,7 @@ jobs:
           host: ${{ matrix.host }}
           target: desktop
           arch: ${{ matrix.arch }}
-          modules: 'qtmultimedia;qtmultimediawidgets'
+          modules: 'qtmultimedia;qtmultimediawidgets;qtsvg'
           cache: true
           tools: 'tools_ifw_5.15.2'
 
@@ -55,28 +63,34 @@ jobs:
         run: cmake -S . -B build -G Ninja -DCCOS_BUILD_TESTS=OFF -DCMAKE_BUILD_TYPE=Release
 
       - name: Build
-        run: cmake --build build --parallel
+        run: cmake --build build --config Release --parallel
 
       - name: Bundle Qt runtime (Windows)
         if: startsWith(matrix.os, 'windows')
         shell: pwsh
         run: |
-          windeployqt --release --compiler-runtime --multimedia build\ccos_editor.exe
+          windeployqt --release --compiler-runtime --multimedia --svg build\ccos_editor.exe
 
       - name: Bundle Qt runtime (macOS)
         if: startsWith(matrix.os, 'macos')
-        run: |
-          macdeployqt build/ccos_editor.app -verbose=1
+        run: macdeployqt build/ccos_editor.app -verbose=1
 
       - name: Package
         run: cpack --config build/CPackConfig.cmake -G "${{ matrix.generator }}"
+
+      - name: Verify package artifacts
+        shell: bash
+        run: |
+          test -n "$(find build -maxdepth 1 -type f \( -name '*.zip' -o -name '*.exe' -o -name '*.dmg' -o -name '*.tar.gz' -o -name '*.tgz' \) -print -quit)"
 
       - name: Upload package
         uses: actions/upload-artifact@v4
         with:
           name: CCOS-${{ matrix.os }}
           path: |
+            build/*.zip
             build/*.exe
             build/*.dmg
             build/*.tar.gz
-          if-no-files-found: ignore
+            build/*.tgz
+          if-no-files-found: error
