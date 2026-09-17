@@ -31,6 +31,7 @@ add_library(ccos_core
     src/timeline/Track.cpp
     src/timeline/Timeline.cpp
     src/timeline/TimelineEditor.cpp
+    src/timeline/Keyframe.cpp
     src/render/RenderManager.cpp
 )
 
@@ -71,6 +72,7 @@ if(CCOS_BUILD_TESTS)
         tests/project/ProjectTests.cpp
         tests/timeline/TimelineTests.cpp
         tests/timeline/TimelineEditorTests.cpp
+        tests/timeline/KeyframeTests.cpp
     )
     target_link_libraries(ccos_tests PRIVATE ccos_core GTest::gtest_main)
     include(GoogleTest)
@@ -78,4 +80,5 @@ if(CCOS_BUILD_TESTS)
 endif()
 
 include(GNUInstallDirs)
+install(TARGETS ccos_editor RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} BUNDLE DESTINATION .)
 install(FILES LICENSE DESTINATION ${CMAKE_INSTALL_DOCDIR} RENAME LICENSE.txt)
