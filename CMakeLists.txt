@@ -11,7 +11,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(CCOS_BUILD_TESTS "Build unit tests" ON)
-option(CCOS_ENABLE_FFMPEG "Enable FFmpeg integration when available" OFF)
 
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC ON)
@@ -31,6 +30,7 @@ add_library(ccos_core
     src/timeline/Clip.cpp
     src/timeline/Track.cpp
     src/timeline/Timeline.cpp
+    src/timeline/TimelineEditor.cpp
     src/render/RenderManager.cpp
 )
 
@@ -70,6 +70,7 @@ if(CCOS_BUILD_TESTS)
         tests/core/CommandStackTests.cpp
         tests/project/ProjectTests.cpp
         tests/timeline/TimelineTests.cpp
+        tests/timeline/TimelineEditorTests.cpp
     )
     target_link_libraries(ccos_tests PRIVATE ccos_core GTest::gtest_main)
     include(GoogleTest)
