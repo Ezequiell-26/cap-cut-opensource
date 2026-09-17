@@ -54,16 +54,28 @@ QStringList WaveformGenerator::buildArguments(const MediaAsset& asset,
                                                int height,
                                                int samplesPerSecond,
                                                QString* error) {
-    if (asset.path().trimmed().isEmpty()) return fail(error, QStringLiteral("Waveform input path is required")), QStringList{};
-    if (outputPath.trimmed().isEmpty()) return fail(error, QStringLiteral("Waveform output path is required")), QStringList{};
+    if (asset.path().trimmed().isEmpty()) {
+        if (error) *error = QStringLiteral("Waveform input path is required");
+        return {};
+    }
+    if (outputPath.trimmed().isEmpty()) {
+        if (error) *error = QStringLiteral("Waveform output path is required");
+        return {};
+    }
     if (!validParameters(width, height, samplesPerSecond)) {
         if (error) *error = QStringLiteral("Waveform dimensions or sample density are outside supported bounds");
         return {};
     }
-    if (samePath(asset.path(), outputPath)) return fail(error, QStringLiteral("Waveform output path must not overwrite the source media")), QStringList{};
+    if (samePath(asset.path(), outputPath)) {
+        if (error) *error = QStringLiteral("Waveform output path must not overwrite the source media");
+        return {};
+    }
 
-    const QString filter = QStringLiteral("aformat=channel_layouts=stereo,showwavespic=s=%1x%2:split_channels=0:colors=white")
-        .arg(width).arg(height);
+    // Resampling bounds the intermediate signal while showwavespic turns it
+    // into the raster used by the timeline waveform UI.
+    const QString filter = QStringLiteral(
+        "aformat=channel_layouts=stereo,aresample=%1,showwavespic=s=%2x%3:split_channels=0:colors=white")
+        .arg(samplesPerSecond).arg(width).arg(height);
 
     return {
         QStringLiteral("-hide_banner"),
@@ -104,7 +116,7 @@ bool WaveformGenerator::generate(const MediaAsset& asset,
     config.startupTimeout = std::chrono::seconds(5);
     config.timeout = std::chrono::seconds(45);
     config.maxOutputSize = 2 * 1024 * 1024;
-    config.riskLevel = ccos::core::ProcessConfig::RiskLevel::High;
+    config.riskLevel = ccos::core::ProcessRunner::RiskLevel::High;
     config.sanitizeEnvironment = true;
 
     const auto result = runner.executeSync(config);
