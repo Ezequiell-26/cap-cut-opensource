@@ -19,9 +19,10 @@ class MediaAsset {
 public:
     MediaAsset();
     explicit MediaAsset(QString path);
+    MediaAsset(ccos::core::Uuid id, QString path);
     [[nodiscard]] const ccos::core::Uuid& id() const noexcept { return id_; }
     [[nodiscard]] const QString& path() const noexcept { return path_; }
-    void setPath(QString path) { path_ = std::move(path); }
+    void setPath(QString path) { path_ = std::move(path); refreshName(); }
     [[nodiscard]] const QString& name() const noexcept { return name_; }
     [[nodiscard]] const MediaMetadata& metadata() const noexcept { return metadata_; }
     MediaMetadata& metadata() noexcept { return metadata_; }
