@@ -3,6 +3,7 @@
 #include "core/Uuid.hpp"
 #include "media/MediaAsset.hpp"
 #include <algorithm>
+#include <cmath>
 #include <QStringList>
 
 namespace ccos::timeline {
@@ -34,6 +35,8 @@ public:
     [[nodiscard]] ccos::core::Time sourceIn() const noexcept { return sourceIn_; }
     [[nodiscard]] ccos::core::Time sourceOut() const noexcept { return sourceOut_; }
     [[nodiscard]] double speed() const noexcept { return speed_; }
+    [[nodiscard]] double audioGain() const noexcept { return audioGain_; }
+    [[nodiscard]] bool audioMuted() const noexcept { return audioMuted_; }
     [[nodiscard]] const TransformState& transform() const noexcept { return transform_; }
     TransformState& transform() noexcept { return transform_; }
     [[nodiscard]] const QStringList& effects() const noexcept { return effects_; }
@@ -42,6 +45,8 @@ public:
     [[nodiscard]] qint64 transitionInDurationMs() const noexcept { return transitionInDurationMs_; }
     void setTransitionIn(QString id, qint64 durationMs) { transitionInId_ = std::move(id); transitionInDurationMs_ = std::max<qint64>(0, durationMs); }
     void setSpeed(double value) noexcept { speed_ = value > 0.0 ? value : 1.0; }
+    void setAudioGain(double value) noexcept { audioGain_ = std::isfinite(value) ? std::clamp(value, 0.0, 4.0) : 1.0; }
+    void setAudioMuted(bool value) noexcept { audioMuted_ = value; }
     void setStart(ccos::core::Time value) noexcept { start_ = value; }
     void setDuration(ccos::core::Time value) noexcept { duration_ = value; sourceOut_ = sourceIn_ + value; }
     void setSourceRange(ccos::core::Time in, ccos::core::Time out) noexcept;
@@ -56,6 +61,8 @@ private:
     ccos::core::Time sourceIn_;
     ccos::core::Time sourceOut_;
     double speed_ = 1.0;
+    double audioGain_ = 1.0;
+    bool audioMuted_ = false;
     TransformState transform_;
     QStringList effects_;
     QString transitionInId_ = QStringLiteral("cut");
