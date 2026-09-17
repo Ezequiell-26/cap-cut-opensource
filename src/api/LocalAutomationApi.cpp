@@ -18,6 +18,12 @@ struct LocalAutomationApi::ServerHolder {
 
 namespace {
 
+constexpr int kReadTimeoutSeconds = 5;
+constexpr int kWriteTimeoutSeconds = 5;
+constexpr int kKeepAliveTimeoutSeconds = 10;
+constexpr size_t kMaxRequestPayloadBytes = 1024u * 1024u;
+constexpr int kKeepAliveMaxCount = 32;
+
 QByteArray jsonResponse(const QJsonObject& object) {
     return QJsonDocument(object).toJson(QJsonDocument::Compact);
 }
@@ -43,8 +49,18 @@ QJsonObject jobToJson(const ccos::core::JobStatus& status) {
 
 bool authorized(const httplib::Request& request, const QString& token) {
     if (token.isEmpty()) return true;
-    const std::string expected = (QStringLiteral("Bearer ") + token).toStdString();
-    return request.get_header_value("Authorization") == expected;
+
+    const QByteArray expected = (QStringLiteral("Bearer ") + token).toUtf8();
+    const std::string actual = request.get_header_value("Authorization");
+    if (actual.size() != static_cast<size_t>(expected.size())) return false;
+
+    unsigned char difference = 0;
+    for (size_t i = 0; i < actual.size(); ++i) {
+        difference = static_cast<unsigned char>(difference |
+            static_cast<unsigned char>(static_cast<unsigned char>(actual[i]) ^
+                                       static_cast<unsigned char>(expected.at(static_cast<qsizetype>(i)))));
+    }
+    return difference == 0;
 }
 
 void unauthorized(httplib::Response& response) {
@@ -76,7 +92,13 @@ bool LocalAutomationApi::start() {
     server_ = std::make_unique<ServerHolder>();
     auto* holder = server_.get();
 
-    holder->server.set_keep_alive_max_count(100);
+    // The automation API is intentionally constrained to a local trust boundary.
+    // Also bound request size and connection lifetimes to avoid resource exhaustion.
+    holder->server.set_read_timeout(kReadTimeoutSeconds, 0);
+    holder->server.set_write_timeout(kWriteTimeoutSeconds, 0);
+    holder->server.set_keep_alive_timeout(kKeepAliveTimeoutSeconds);
+    holder->server.set_keep_alive_max_count(kKeepAliveMaxCount);
+    holder->server.set_payload_max_length(kMaxRequestPayloadBytes);
 
     holder->server.Get("/api/v1/health", [this](const httplib::Request& request, httplib::Response& response) {
         if (!authorized(request, bearerToken_)) {
