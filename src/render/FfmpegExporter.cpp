@@ -2,6 +2,7 @@
 #include "core/ProcessRunner.hpp"
 #include "render/HardwareCapabilities.hpp"
 
+#include <QDir>
 #include <QFileInfo>
 
 namespace ccos::render {
@@ -13,16 +14,40 @@ QString resolveVideoCodec(const QString& requested, const QString& executable) {
     return HardwareCapabilitiesProbe::detect(executable).preferredH264Encoder(true);
 }
 
+bool samePath(const QString& left, const QString& right) {
+    const QString a = QDir::cleanPath(QFileInfo(left).absoluteFilePath());
+    const QString b = QDir::cleanPath(QFileInfo(right).absoluteFilePath());
+#ifdef Q_OS_WIN
+    return QString::compare(a, b, Qt::CaseInsensitive) == 0;
+#else
+    return a == b;
+#endif
+}
+
 } // namespace
 
 bool FfmpegExporter::exportAsset(const ccos::media::MediaAsset& asset, const QString& outputPath,
                                  const ExportSettings& settings, const QString& executable, QString* error) {
-    if (asset.path().isEmpty() || outputPath.isEmpty()) {
+    if (asset.path().isEmpty() || outputPath.trimmed().isEmpty()) {
         if (error) *error = QStringLiteral("Input and output paths are required");
         return false;
     }
 
     if (!settings.validate(error)) return false;
+    if (!ccos::core::ProcessRunner::validateExecutable(executable)) {
+        if (error) *error = QStringLiteral("FFmpeg executable not found or not executable: %1").arg(executable);
+        return false;
+    }
+    if (samePath(asset.path(), outputPath)) {
+        if (error) *error = QStringLiteral("Output path must not overwrite the input media");
+        return false;
+    }
+
+    const QFileInfo outputInfo(outputPath);
+    if (!QDir().mkpath(outputInfo.absolutePath())) {
+        if (error) *error = QStringLiteral("Unable to create output directory: %1").arg(outputInfo.absolutePath());
+        return false;
+    }
 
     const QString videoCodec = resolveVideoCodec(settings.videoCodec, executable);
     if (videoCodec.isEmpty()) {
