@@ -17,13 +17,30 @@ namespace ccos::api {
 namespace {
 
 QJsonDocument getJson(const QUrl& url, const QByteArray& authorization = {}) {
+    constexpr qint64 kMaxResponseBytes = 8 * 1024 * 1024;
     QNetworkAccessManager manager;
     QNetworkRequest request(url);
-    request.setHeader(QNetworkRequest::UserAgentHeader, QStringLiteral("CCOS-Editor/0.8"));
+    request.setHeader(QNetworkRequest::UserAgentHeader, QStringLiteral("CCOS-Editor/0.9"));
     request.setRawHeader("Accept", "application/json");
     if (!authorization.isEmpty()) request.setRawHeader("Authorization", authorization);
 
     QNetworkReply* reply = manager.get(request);
+    const QVariant contentLength = reply->header(QNetworkRequest::ContentLengthHeader);
+    if (contentLength.isValid() && contentLength.toLongLong() > kMaxResponseBytes) {
+        reply->abort();
+    }
+
+    QByteArray payload;
+    bool oversized = false;
+    QObject::connect(reply, &QNetworkReply::readyRead, reply, [&]() {
+        if (oversized) return;
+        payload.append(reply->readAll());
+        if (payload.size() > kMaxResponseBytes) {
+            oversized = true;
+            reply->abort();
+        }
+    });
+
     QEventLoop loop;
     QTimer timer;
     timer.setSingleShot(true);
@@ -35,13 +52,15 @@ QJsonDocument getJson(const QUrl& url, const QByteArray& authorization = {}) {
     });
     loop.exec();
     if (timer.isActive()) timer.stop();
-    if (reply->error() != QNetworkReply::NoError) {
-        reply->deleteLater();
-        return {};
-    }
-    QJsonParseError parseError{};
-    const QJsonDocument document = QJsonDocument::fromJson(reply->readAll(), &parseError);
+
+    payload.append(reply->readAll());
+    const bool ok = !oversized && payload.size() <= kMaxResponseBytes &&
+                    reply->error() == QNetworkReply::NoError;
     reply->deleteLater();
+    if (!ok) return {};
+
+    QJsonParseError parseError{};
+    const QJsonDocument document = QJsonDocument::fromJson(payload, &parseError);
     return parseError.error == QJsonParseError::NoError ? document : QJsonDocument{};
 }
 
@@ -257,13 +276,17 @@ UnsplashApi::PhotoResult UnsplashApi::getPhotoDetails(const QString& photoId) {
     result.width = object.value(QStringLiteral("width")).toInt();
     result.height = object.value(QStringLiteral("height")).toInt();
     result.dominantColor = QColor(object.value(QStringLiteral("color")).toString());
+    const auto links = object.value(QStringLiteral("links")).toObject();
     result.downloadUrl = object.value(QStringLiteral("urls")).toObject().value(QStringLiteral("full")).toString();
+    result.downloadLocationUrl = links.value(QStringLiteral("download_location")).toString();
     return result;
 }
 
 QString UnsplashApi::getPhotoDownloadUrl(const QString& photoId, const QString& size) {
     Q_UNUSED(size);
-    return QStringLiteral("https://source.unsplash.com/%1").arg(photoId);
+    if (accessKey_.isEmpty() || photoId.trimmed().isEmpty()) return {};
+    const PhotoResult details = getPhotoDetails(photoId.trimmed());
+    return details.downloadLocationUrl;
 }
 
 QVector<UnsplashApi::PhotoResult> UnsplashApi::parseUnsplashResponse(const QJsonDocument& doc) {
@@ -280,6 +303,7 @@ QVector<UnsplashApi::PhotoResult> UnsplashApi::parseUnsplashResponse(const QJson
         result.height = object.value(QStringLiteral("height")).toInt();
         result.dominantColor = QColor(object.value(QStringLiteral("color")).toString());
         result.downloadUrl = object.value(QStringLiteral("urls")).toObject().value(QStringLiteral("full")).toString();
+        result.downloadLocationUrl = object.value(QStringLiteral("links")).toObject().value(QStringLiteral("download_location")).toString();
         if (!result.id.isEmpty()) results.append(result);
     }
     return results;
