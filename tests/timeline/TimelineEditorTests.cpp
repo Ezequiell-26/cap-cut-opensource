@@ -6,6 +6,7 @@ TEST(TimelineEditorTests, SplitsClipAtTimelinePosition) {
     asset.metadata().durationMs = 10000;
     ccos::timeline::Clip clip(asset);
     clip.setStart(ccos::core::Time::fromSeconds(2.0));
+    const auto originalId = clip.id().toString();
 
     ccos::timeline::Track track(ccos::timeline::TrackType::Video);
     track.addClip(clip);
@@ -14,6 +15,9 @@ TEST(TimelineEditorTests, SplitsClipAtTimelinePosition) {
     EXPECT_DOUBLE_EQ(track.clips()[0].duration().seconds(), 4.0);
     EXPECT_DOUBLE_EQ(track.clips()[1].start().seconds(), 6.0);
     EXPECT_DOUBLE_EQ(track.clips()[1].duration().seconds(), 6.0);
+    EXPECT_EQ(track.clips()[0].id().toString(), originalId);
+    EXPECT_NE(track.clips()[1].id().toString(), originalId);
+    EXPECT_NE(track.clips()[0].id(), track.clips()[1].id());
 }
 
 TEST(TimelineEditorTests, TrimsSourceRange) {
