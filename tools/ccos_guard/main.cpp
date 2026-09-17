@@ -126,10 +126,46 @@ struct Guard {
         }
     }
 
+    void checkDependencyPinning() {
+        for (const auto& entry : fs::recursive_directory_iterator(root, fs::directory_options::skip_permission_denied)) {
+            if (!entry.is_regular_file()) continue;
+            const auto rel = fs::relative(entry.path(), root).generic_string();
+            if (rel.rfind(".git/", 0) == 0 || rel.rfind("build", 0) == 0) continue;
+            const auto name = entry.path().filename().string();
+            if (name != "CMakeLists.txt" && entry.path().extension() != ".cmake") continue;
+
+            const std::string content = readText(entry.path());
+            std::size_t cursor = 0;
+            while ((cursor = content.find("FetchContent_Declare(", cursor)) != std::string::npos) {
+                const std::size_t bodyStart = cursor;
+                const std::size_t bodyEnd = content.find(')', bodyStart);
+                if (bodyEnd == std::string::npos) {
+                    fail("unterminated FetchContent_Declare in " + rel);
+                    break;
+                }
+
+                const std::string body = content.substr(bodyStart, bodyEnd - bodyStart);
+                if (body.find("GIT_REPOSITORY") != std::string::npos) {
+                    if (body.find("GIT_TAG") == std::string::npos) {
+                        fail("Git FetchContent dependency without a pinned GIT_TAG in " + rel);
+                    }
+                    for (const auto floating : {"GIT_TAG main", "GIT_TAG master", "GIT_TAG develop", "GIT_TAG trunk", "GIT_TAG HEAD"}) {
+                        if (body.find(floating) != std::string::npos) {
+                            fail(std::string("floating FetchContent tag ") + floating + " in " + rel);
+                        }
+                    }
+                }
+
+                cursor = bodyEnd + 1;
+            }
+        }
+    }
+
     int run() {
         checkRequiredFiles();
         checkTree();
         checkCMakeSources();
+        checkDependencyPinning();
         std::cout << "ccos_guard: " << errors << " error(s)\n";
         return errors == 0 ? 0 : 1;
     }
