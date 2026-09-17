@@ -44,9 +44,38 @@ bool TimelineEditor::moveClip(Track& track, std::size_t clipIndex, ccos::core::T
     return true;
 }
 
+bool TimelineEditor::slipClip(Track& track, std::size_t clipIndex, ccos::core::Time sourceDelta) {
+    if (clipIndex >= track.clips().size()) return false;
+    auto& clip = track.clips()[clipIndex];
+
+    const auto newIn = clip.sourceIn() + sourceDelta;
+    const auto newOut = clip.sourceOut() + sourceDelta;
+    const auto duration = clip.duration();
+    if (newIn < ccos::core::Time{} || newOut <= newIn || (newOut - newIn) != duration) return false;
+
+    clip.setSourceRange(newIn, newOut);
+    return true;
+}
+
 bool TimelineEditor::deleteClip(Track& track, std::size_t clipIndex) {
     if (clipIndex >= track.clips().size()) return false;
     track.clips().erase(track.clips().begin() + static_cast<std::ptrdiff_t>(clipIndex));
+    return true;
+}
+
+bool TimelineEditor::rippleDelete(Track& track, std::size_t clipIndex) {
+    if (clipIndex >= track.clips().size()) return false;
+
+    const auto removedStart = track.clips()[clipIndex].start();
+    const auto removedDuration = track.clips()[clipIndex].duration();
+    if (removedDuration <= ccos::core::Time{}) return deleteClip(track, clipIndex);
+
+    const auto removedEnd = removedStart + removedDuration;
+    track.clips().erase(track.clips().begin() + static_cast<std::ptrdiff_t>(clipIndex));
+
+    for (auto& clip : track.clips()) {
+        if (clip.start() >= removedEnd) clip.setStart(clip.start() - removedDuration);
+    }
     return true;
 }
 
