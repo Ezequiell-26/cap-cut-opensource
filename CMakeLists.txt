@@ -33,6 +33,7 @@ add_library(ccos_core
     src/timeline/TimelineEditor.cpp
     src/timeline/Keyframe.cpp
     src/render/RenderManager.cpp
+    src/render/FfmpegExporter.cpp
 )
 
 target_include_directories(ccos_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
@@ -61,7 +62,7 @@ else()
     target_compile_options(ccos_editor PRIVATE -Wall -Wextra -Wpedantic -Wconversion -Wshadow)
 endif()
 
-install(TARGETS ccos_editor RUNTIME DESTINATION bin BUNDLE DESTINATION .)
+install(TARGETS ccos_editor RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} BUNDLE DESTINATION .)
 
 if(CCOS_BUILD_TESTS)
     enable_testing()
@@ -80,5 +81,4 @@ if(CCOS_BUILD_TESTS)
 endif()
 
 include(GNUInstallDirs)
-install(TARGETS ccos_editor RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} BUNDLE DESTINATION .)
 install(FILES LICENSE DESTINATION ${CMAKE_INSTALL_DOCDIR} RENAME LICENSE.txt)
