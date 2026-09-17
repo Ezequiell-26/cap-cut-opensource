@@ -57,6 +57,11 @@ public:
     void searchWikimediaCommons(const QString& query, CreativeMediaKind kind, int limit,
                                 std::function<void(const QVector<CreativeMediaItem>&)> callback);
 
+    // Freesound API v2. Requires an application token supplied by the user.
+    // The token is sent in an Authorization header and never serialized by CCOS.
+    void searchFreesound(const QString& query, const QString& apiToken, int page, int pageSize,
+                         std::function<void(const QVector<CreativeMediaItem>&)> callback);
+
     static QString kindToString(CreativeMediaKind kind);
 
 signals:
@@ -65,11 +70,13 @@ signals:
 
 private:
     void requestJson(const QUrl& url, const QString& provider,
-                     std::function<void(const QJsonDocument&)> parser);
+                     std::function<void(const QJsonDocument&)> parser,
+                     const QString& authorizationToken = {});
     static QVector<CreativeMediaItem> parseOpenverse(const QJsonDocument& document,
                                                      CreativeMediaKind kind);
     static QVector<CreativeMediaItem> parseWikimedia(const QJsonDocument& document,
                                                       CreativeMediaKind kind);
+    static QVector<CreativeMediaItem> parseFreesound(const QJsonDocument& document);
 
     QNetworkAccessManager* networkManager_ = nullptr;
 };
