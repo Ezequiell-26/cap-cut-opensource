@@ -1,4 +1,5 @@
 #include "api/EditorApi.hpp"
+#include "render/ExportPresets.hpp"
 #include "render/HardwareCapabilities.hpp"
 #include "render/TimelineExporter.hpp"
 #include <QFileInfo>
@@ -62,12 +63,36 @@ QJsonObject EditorApi::hardwareCapabilities(const QString& ffmpegExecutable) {
     };
 }
 
+QJsonObject EditorApi::exportPresets() {
+    QJsonArray presets;
+    for (const auto& preset : ccos::render::ExportPresetCatalog::all()) {
+        const auto& settings = preset.settings;
+        presets.append(QJsonObject{
+            {QStringLiteral("id"), ccos::render::ExportPresetCatalog::idString(preset.id)},
+            {QStringLiteral("name"), preset.name},
+            {QStringLiteral("description"), preset.description},
+            {QStringLiteral("width"), settings.width},
+            {QStringLiteral("height"), settings.height},
+            {QStringLiteral("fps"), settings.fps},
+            {QStringLiteral("container"), settings.container},
+            {QStringLiteral("videoCodec"), settings.videoCodec},
+            {QStringLiteral("audioCodec"), settings.audioCodec},
+            {QStringLiteral("videoBitrateKbps"), settings.videoBitrateKbps},
+            {QStringLiteral("audioBitrateKbps"), settings.audioBitrateKbps}
+        });
+    }
+    return QJsonObject{{QStringLiteral("ok"), true}, {QStringLiteral("presets"), presets}};
+}
+
 QJsonObject EditorApi::command(ccos::project::Project& project, const QJsonObject& request, const QString& ffmpegExecutable) {
     const QString operation = request.value(QStringLiteral("op")).toString().trimmed().toLower();
     if (operation == QStringLiteral("inspect")) return inspect(project);
     if (operation == QStringLiteral("validate")) return validate(project);
     if (operation == QStringLiteral("hardware_capabilities") || operation == QStringLiteral("hardware")) {
         return hardwareCapabilities(ffmpegExecutable);
+    }
+    if (operation == QStringLiteral("export_presets") || operation == QStringLiteral("presets")) {
+        return exportPresets();
     }
     if (operation == QStringLiteral("set_project_name")) {
         const QString name = request.value(QStringLiteral("name")).toString().trimmed();
@@ -78,15 +103,27 @@ QJsonObject EditorApi::command(ccos::project::Project& project, const QJsonObjec
     if (operation == QStringLiteral("export")) {
         const QString output = request.value(QStringLiteral("output")).toString();
         if (output.isEmpty()) return QJsonObject{{QStringLiteral("ok"), false}, {QStringLiteral("error"), QStringLiteral("output is required")}};
+
         ccos::render::ExportSettings settings;
+        if (request.contains(QStringLiteral("preset"))) {
+            ccos::render::ExportPresetId presetId;
+            if (!ccos::render::ExportPresetCatalog::fromIdString(request.value(QStringLiteral("preset")).toString(), &presetId)) {
+                return QJsonObject{{QStringLiteral("ok"), false}, {QStringLiteral("error"), QStringLiteral("unknown export preset")}};
+            }
+            settings = ccos::render::ExportPresetCatalog::settingsFor(presetId);
+        }
         if (request.contains(QStringLiteral("width"))) settings.width = request.value(QStringLiteral("width")).toInt();
         if (request.contains(QStringLiteral("height"))) settings.height = request.value(QStringLiteral("height")).toInt();
         if (request.contains(QStringLiteral("fps"))) settings.fps = request.value(QStringLiteral("fps")).toDouble();
+        if (request.contains(QStringLiteral("container"))) settings.container = request.value(QStringLiteral("container")).toString();
         if (request.contains(QStringLiteral("videoCodec"))) settings.videoCodec = request.value(QStringLiteral("videoCodec")).toString();
         if (request.contains(QStringLiteral("audioCodec"))) settings.audioCodec = request.value(QStringLiteral("audioCodec")).toString();
         if (request.contains(QStringLiteral("videoBitrateKbps"))) settings.videoBitrateKbps = request.value(QStringLiteral("videoBitrateKbps")).toInt();
         if (request.contains(QStringLiteral("audioBitrateKbps"))) settings.audioBitrateKbps = request.value(QStringLiteral("audioBitrateKbps")).toInt();
         QString error;
+        if (!settings.validate(&error)) {
+            return QJsonObject{{QStringLiteral("ok"), false}, {QStringLiteral("error"), error}};
+        }
         const bool ok = ccos::render::TimelineExporter::exportContiguousVideo(project, output, settings, ffmpegExecutable, &error);
         QJsonObject result{{QStringLiteral("ok"), ok}, {QStringLiteral("output"), output}};
         if (!ok) result.insert(QStringLiteral("error"), error);
