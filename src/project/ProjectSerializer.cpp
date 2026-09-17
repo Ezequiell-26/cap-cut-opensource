@@ -7,6 +7,7 @@
 #include <QSaveFile>
 
 #include <unordered_set>
+#include <utility>
 
 namespace ccos::project {
 namespace {
@@ -21,9 +22,27 @@ QJsonObject encodeTime(const ccos::core::Time& time) {
 }
 
 ccos::core::Time decodeTime(const QJsonObject& object) {
-    return ccos::core::Time(
-        object.value(QStringLiteral("n")).toInteger(),
-        object.value(QStringLiteral("d")).toInt(1));
+    const qint64 numerator = object.value(QStringLiteral("n")).toInteger();
+    const int denominator = object.value(QStringLiteral("d")).toInt(1);
+    return ccos::core::Time(numerator, denominator);
+}
+
+bool validateTimeObject(const QJsonObject& object, QString* error, const QString& fieldName) {
+    if (!object.contains(QStringLiteral("n")) || !object.contains(QStringLiteral("d"))) {
+        if (error) *error = QStringLiteral("Invalid time object: %1").arg(fieldName);
+        return false;
+    }
+    const qint64 numerator = object.value(QStringLiteral("n")).toInteger();
+    const int denominator = object.value(QStringLiteral("d")).toInt(0);
+    if (denominator <= 0) {
+        if (error) *error = QStringLiteral("Invalid time denominator: %1").arg(fieldName);
+        return false;
+    }
+    if (std::abs(static_cast<long double>(numerator)) > 9.0e15L || denominator > 1'000'000'000) {
+        if (error) *error = QStringLiteral("Time value outside supported bounds: %1").arg(fieldName);
+        return false;
+    }
+    return true;
 }
 
 QJsonObject encodeTransform(const ccos::timeline::TransformState& t) {
@@ -262,9 +281,16 @@ bool ProjectSerializer::load(Project& project, const QString& path, QString* err
                 if (!parseUuid(clipObject.value(QStringLiteral("id")), clipId, version >= 6, error, QStringLiteral("clip.id"))) return false;
                 if (!addUniqueId(clipId, clipIds, error, QStringLiteral("clip"))) return false;
 
-                const ccos::core::Uuid assetId(clipObject.value(QStringLiteral("assetId")).toString().toStdString());
-                if (assetId.isNull()) {
-                    if (error) *error = QStringLiteral("Invalid clip assetId");
+                const QString assetIdText = clipObject.value(QStringLiteral("assetId")).toString().trimmed();
+                const ccos::core::Uuid assetId(assetIdText.toStdString());
+                if (assetId.isNull() || !assetIds.contains(assetId.toString())) {
+                    if (error) *error = QStringLiteral("Clip references missing assetId: %1").arg(assetIdText);
+                    return false;
+                }
+
+                if (!validateTimeObject(clipObject.value(QStringLiteral("start")).toObject(), error, QStringLiteral("clip.start")) ||
+                    !validateTimeObject(clipObject.value(QStringLiteral("sourceIn")).toObject(), error, QStringLiteral("clip.sourceIn")) ||
+                    !validateTimeObject(clipObject.value(QStringLiteral("sourceOut")).toObject(), error, QStringLiteral("clip.sourceOut"))) {
                     return false;
                 }
 
@@ -303,6 +329,11 @@ bool ProjectSerializer::load(Project& project, const QString& path, QString* err
             ccos::core::Uuid textId;
             if (!parseUuid(object.value(QStringLiteral("id")), textId, version >= 6, error, QStringLiteral("textLayers[].id"))) return false;
             if (!addUniqueId(textId, textIds, error, QStringLiteral("text-layer"))) return false;
+
+            if (!validateTimeObject(object.value(QStringLiteral("start")).toObject(), error, QStringLiteral("textLayers[].start")) ||
+                !validateTimeObject(object.value(QStringLiteral("duration")).toObject(), error, QStringLiteral("textLayers[].duration"))) {
+                return false;
+            }
 
             ccos::text::TextLayer layer(textId, object.value(QStringLiteral("text")).toString());
             layer.setStart(decodeTime(object.value(QStringLiteral("start")).toObject()));
