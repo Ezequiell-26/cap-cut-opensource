@@ -8,6 +8,7 @@ enum class TrackType { Video, Audio };
 class Track {
 public:
     explicit Track(TrackType type = TrackType::Video);
+    Track(TrackType type, QString name);
     [[nodiscard]] TrackType type() const noexcept { return type_; }
     [[nodiscard]] const QString& name() const noexcept { return name_; }
     void setName(QString name) { name_ = std::move(name); }
