@@ -1,4 +1,5 @@
 #include "effects/BuiltinEffects.hpp"
+#include <cmath>
 
 namespace ccos::effects {
 
