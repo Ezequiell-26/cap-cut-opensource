@@ -27,9 +27,11 @@ add_library(ccos_core
     src/project/ProjectSerializer.cpp
     src/media/MediaAsset.cpp
     src/media/MediaImporter.cpp
+    src/media/MediaProbe.cpp
     src/timeline/Clip.cpp
     src/timeline/Track.cpp
     src/timeline/Timeline.cpp
+    src/render/RenderManager.cpp
 )
 
 target_include_directories(ccos_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
@@ -65,6 +67,7 @@ if(CCOS_BUILD_TESTS)
     find_package(GTest 1.14 REQUIRED)
     add_executable(ccos_tests
         tests/core/TimeTests.cpp
+        tests/core/CommandStackTests.cpp
         tests/project/ProjectTests.cpp
         tests/timeline/TimelineTests.cpp
     )
