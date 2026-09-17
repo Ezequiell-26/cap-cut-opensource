@@ -40,12 +40,11 @@ if(CCOS_ENABLE_UTF8_HEADER)
     FetchContent_Declare(
         utf8_header
         GIT_REPOSITORY https://github.com/sheredom/utf8.h.git
-        GIT_TAG main
+        GIT_TAG 7b7431278ba0162eba6c60a3ecd2f1210f9e963b
         GIT_SHALLOW TRUE
     )
-    # sheredom/utf8.h is a single public-domain header and does not publish a
-    # stable release tag. Keep it opt-in and require release-time commit pinning
-    # before this option is used in a reproducible release build.
+    # The repository does not publish a stable release tag; pin the audited
+    # commit for reproducible builds. The project is public-domain/Unlicense.
     FetchContent_MakeAvailable(utf8_header)
     target_include_directories(ccos_utility_extensions INTERFACE ${utf8_header_SOURCE_DIR})
     target_compile_definitions(ccos_utility_extensions INTERFACE CCOS_HAS_UTF8_HEADER)
