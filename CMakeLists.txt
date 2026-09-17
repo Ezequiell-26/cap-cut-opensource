@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.24)
 
 project(CCOS
-    VERSION 0.2.0
+    VERSION 0.3.0
     DESCRIPTION "CCOS - Open Source Professional Video Editor"
     LANGUAGES CXX
 )
@@ -78,6 +78,7 @@ endif()
 
 include(GNUInstallDirs)
 install(TARGETS ccos_editor RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} BUNDLE DESTINATION .)
+install(FILES LICENSE DESTINATION ${CMAKE_INSTALL_DOCDIR} RENAME LICENSE.txt)
 
 set(CPACK_PACKAGE_NAME "CCOS")
 set(CPACK_PACKAGE_VENDOR "CCOS Open Source")
@@ -94,10 +95,8 @@ if(CCOS_BUILD_TESTS)
         include(FetchContent)
         set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
         set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
-        FetchContent_Declare(
-            googletest
-            URL https://github.com/google/googletest/archive/refs/tags/v1.14.0.tar.gz
-        )
+        FetchContent_Declare(googletest
+            URL https://github.com/google/googletest/archive/refs/tags/v1.14.0.tar.gz)
         FetchContent_MakeAvailable(googletest)
     endif()
     if(NOT TARGET GTest::gtest_main)
@@ -108,14 +107,15 @@ if(CCOS_BUILD_TESTS)
         tests/core/TimeTests.cpp
         tests/core/CommandStackTests.cpp
         tests/project/ProjectTests.cpp
+        tests/project/ProjectClipPropertiesTests.cpp
         tests/timeline/TimelineTests.cpp
         tests/timeline/TimelineEditorTests.cpp
         tests/timeline/KeyframeTests.cpp
         tests/media/MediaCacheTests.cpp
+        tests/effects/BuiltinEffectsTests.cpp
+        tests/text/SubtitleParserTests.cpp
     )
     target_link_libraries(ccos_tests PRIVATE ccos_core GTest::gtest_main)
     include(GoogleTest)
     gtest_discover_tests(ccos_tests)
 endif()
-
-install(FILES LICENSE DESTINATION ${CMAKE_INSTALL_DOCDIR} RENAME LICENSE.txt)
