@@ -67,7 +67,7 @@ void MainWindow::buildUi() {
     auto* videoWidget = new QVideoWidget(center);
     videoWidget->setMinimumSize(640, 360);
     videoWidget->setStyleSheet(QStringLiteral("background:#111; border:1px solid #2a2a2a;"));
-    player_->setVideoOutput(videoWidget);
+    player_->setVideoOutput(videoWidget->videoSink());
     previewLabel_ = new QLabel(QStringLiteral("Import a media file to begin"), videoWidget);
     previewLabel_->setAlignment(Qt::AlignCenter);
     previewLabel_->setAttribute(Qt::WA_TransparentForMouseEvents);
