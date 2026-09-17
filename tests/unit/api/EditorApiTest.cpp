@@ -160,3 +160,39 @@ TEST(EditorApiTest, ValidationRejectsInvalidClipTransform) {
     }
     EXPECT_TRUE(foundOpacityError);
 }
+
+
+TEST(EditorApiTest, AudioMixCommandRejectsUnsafeGain) {
+    auto project = makeProject();
+    auto& track = project.timeline().ensureVideoTrack();
+    track.addClip(makeClip(0.0, 5.0));
+
+    const QJsonObject request{
+        {QStringLiteral("op"), QStringLiteral("audio_mix")},
+        {QStringLiteral("trackIndex"), 0},
+        {QStringLiteral("clipIndex"), 0},
+        {QStringLiteral("gain"), 99.0},
+        {QStringLiteral("muted"), false}
+    };
+    const QJsonObject result = ccos::api::EditorApi::command(project, request);
+    EXPECT_FALSE(result.value(QStringLiteral("ok")).toBool());
+}
+
+
+TEST(EditorApiTest, AudioMixCommandUpdatesClipState) {
+    auto project = makeProject();
+    auto& track = project.timeline().ensureVideoTrack();
+    track.addClip(makeClip(0.0, 5.0));
+
+    const QJsonObject request{
+        {QStringLiteral("op"), QStringLiteral("audio_mix")},
+        {QStringLiteral("trackIndex"), 0},
+        {QStringLiteral("clipIndex"), 0},
+        {QStringLiteral("gain"), 1.5},
+        {QStringLiteral("muted"), true}
+    };
+    const QJsonObject result = ccos::api::EditorApi::command(project, request);
+    ASSERT_TRUE(result.value(QStringLiteral("ok")).toBool());
+    EXPECT_DOUBLE_EQ(track.clips().front().audioGain(), 1.5);
+    EXPECT_TRUE(track.clips().front().audioMuted());
+}
