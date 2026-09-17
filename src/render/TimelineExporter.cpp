@@ -4,6 +4,7 @@
 #include "core/ProcessRunner.hpp"
 
 #include <QFileInfo>
+#include <QDir>
 
 namespace ccos::render {
 namespace {
@@ -14,6 +15,16 @@ QString resolveVideoCodec(const QString& requested, const QString& executable) {
     return HardwareCapabilitiesProbe::detect(executable).preferredH264Encoder(true);
 }
 
+bool samePath(const QString& left, const QString& right) {
+    const QString a = QDir::cleanPath(QFileInfo(left).absoluteFilePath());
+    const QString b = QDir::cleanPath(QFileInfo(right).absoluteFilePath());
+#ifdef Q_OS_WIN
+    return QString::compare(a, b, Qt::CaseInsensitive) == 0;
+#else
+    return a == b;
+#endif
+}
+
 } // namespace
 
 bool TimelineExporter::exportContiguousVideo(const ccos::project::Project& project,
@@ -21,11 +32,15 @@ bool TimelineExporter::exportContiguousVideo(const ccos::project::Project& proje
                                              const ExportSettings& settings,
                                              const QString& executable,
                                              QString* error) {
-    if (outputPath.isEmpty()) {
+    if (outputPath.trimmed().isEmpty()) {
         if (error) *error = QStringLiteral("Output path is required");
         return false;
     }
     if (!settings.validate(error)) return false;
+    if (!ccos::core::ProcessRunner::validateExecutable(executable)) {
+        if (error) *error = QStringLiteral("FFmpeg executable not found or not executable: %1").arg(executable);
+        return false;
+    }
 
     const QString videoCodec = resolveVideoCodec(settings.videoCodec, executable);
     if (videoCodec.isEmpty()) {
@@ -40,6 +55,18 @@ bool TimelineExporter::exportContiguousVideo(const ccos::project::Project& proje
     if (!TimelineCompositor::build(project, settings, inputs, filter, videoMap, audioMap, error)) return false;
     if (inputs.isEmpty()) {
         if (error) *error = QStringLiteral("The timeline contains no media inputs");
+        return false;
+    }
+    for (const auto& input : inputs) {
+        if (samePath(input, outputPath)) {
+            if (error) *error = QStringLiteral("Output path must not overwrite a timeline input");
+            return false;
+        }
+    }
+
+    const QFileInfo outputInfo(outputPath);
+    if (!QDir().mkpath(outputInfo.absolutePath())) {
+        if (error) *error = QStringLiteral("Unable to create output directory: %1").arg(outputInfo.absolutePath());
         return false;
     }
 
@@ -66,6 +93,7 @@ bool TimelineExporter::exportContiguousVideo(const ccos::project::Project& proje
     config.startupTimeout = std::chrono::seconds(5);
     config.maxOutputSize = 32 * 1024 * 1024;
     config.riskLevel = ccos::core::ProcessConfig::RiskLevel::High;
+    config.sanitizeEnvironment = true;
 
     const auto result = runner.executeSync(config);
     if (!result.isSuccess()) {
