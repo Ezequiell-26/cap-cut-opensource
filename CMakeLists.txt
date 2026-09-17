@@ -22,6 +22,8 @@ option(CCOS_ENABLE_LOCAL_AUTOMATION_API "Build the loopback-only automation API 
 option(CCOS_ENABLE_VISION "Build the optional OpenCV + MediaPipe vision subsystem" OFF)
 option(CCOS_ENABLE_EXPERIMENTAL_PREVIEW "Build the unfinished preview prototype" OFF)
 option(CCOS_ENABLE_RENDER_SCHEDULER "Build the legacy RenderQueue scheduler" OFF)
+option(CCOS_ENABLE_OPENTIMELINEIO "Enable optional OpenTimelineIO C++ interchange support" OFF)
+option(CCOS_ENABLE_OPENCOLORIO "Enable optional OpenColorIO color-management support" OFF)
 
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC ON)
@@ -29,6 +31,7 @@ set(CMAKE_AUTORCC ON)
 
 include(GNUInstallDirs)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/CCOSMitDependencies.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/CCOSProfessionalDependencies.cmake)
 
 find_package(Qt6 6.4 REQUIRED COMPONENTS Core Gui Network Widgets Multimedia MultimediaWidgets Concurrent)
 
@@ -141,6 +144,9 @@ if(CCOS_ENABLE_VISION)
 endif()
 if(CCOS_ENABLE_EXPERIMENTAL_PREVIEW)
     target_compile_definitions(ccos_core PUBLIC CCOS_HAS_EXPERIMENTAL_PREVIEW)
+endif()
+if(TARGET ccos_professional_interchange)
+    target_link_libraries(ccos_core PUBLIC ccos_professional_interchange)
 endif()
 
 if(MSVC)
