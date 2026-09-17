@@ -11,10 +11,13 @@ The repository now has a real desktop application shell plus hardened media, pro
 - media-bin import model, media probing and relinking support
 - video/audio timeline tracks, clip placement, rational timeline time and undo/redo
 - crash recovery snapshots with project-scoped recovery files
+- dirty-state protection for save, close, New Project and Open Project flows
 - FFmpeg export for standalone assets and contiguous timelines
-- proxy generation and bounded thumbnail generation with cache reuse
+- proxy generation, cached thumbnails and cached audio waveforms
+- media-cache keys fingerprint local source size and modification time to invalidate stale derived media
 - runtime hardware encoder discovery for NVENC, QSV, AMF, VideoToolbox and VAAPI
 - safe `videoCodec=auto` selection with software fallback
+- typed export presets for common horizontal, vertical and WebM workflows
 - headless `ccos-cli` inspection, validation, export and hardware/doctor operations
 - optional MIT/permissive C++ foundation dependencies, kept behind CMake options where appropriate
 - optional OpenTimelineIO and OpenColorIO integration boundaries
@@ -41,6 +44,12 @@ Configure with CMake and build the `ccos_editor` target. Enable `CCOS_BUILD_TEST
 
 The default configuration keeps heavyweight professional SDKs optional. See `CMakePresets.json`, `docs/HARDWARE_ACCELERATION.md`, `docs/PROFESSIONAL_INTERCHANGE.md` and `docs/licenses/THIRD_PARTY_LICENSES.md` for the supported integration boundaries.
 
+## Media derivatives
+
+`ThumbnailGenerator` creates bounded one-frame JPEG thumbnails. `WaveformGenerator` creates bounded PNG audio waveforms using FFmpeg's audio filter graph. Both are cache-aware and reject input/output collisions, invalid dimensions and oversized generated files.
+
+Local media cache keys include a source fingerprint derived from absolute path, file size and modification time. Replacing media at the same pathname therefore creates a different derived-media key in normal filesystem workflows.
+
 ## Design principles
 
 - stable domain model before advanced features
@@ -51,6 +60,7 @@ The default configuration keeps heavyweight professional SDKs optional. See `CMa
 - bounded subprocess/network work
 - crash-safe project persistence and recovery
 - runtime capability detection instead of hard-coded hardware assumptions
+- deterministic cache identities for derived media
 - tests for domain behavior and integration flows
 
 ## License
