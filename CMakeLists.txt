@@ -16,6 +16,7 @@ option(CCOS_FETCH_GTEST "Fetch GoogleTest when it is not installed" ON)
 option(CCOS_ENABLE_MIT_FOUNDATION "Fetch the curated MIT-licensed C++ foundation stack" ON)
 option(CCOS_ENABLE_MINIAUDIO "Make miniaudio available to optional audio device backends" OFF)
 option(CCOS_ENABLE_ONNXRUNTIME "Enable the optional ONNX Runtime integration" OFF)
+option(CCOS_ENABLE_LOCAL_AUTOMATION_API "Build the loopback-only automation API for agents" ON)
 option(CCOS_ENABLE_VISION "Build the optional OpenCV + MediaPipe vision subsystem" OFF)
 option(CCOS_ENABLE_EXPERIMENTAL_PREVIEW "Build the unfinished preview prototype" OFF)
 option(CCOS_ENABLE_RENDER_SCHEDULER "Build the legacy RenderQueue scheduler" OFF)
@@ -85,6 +86,10 @@ set(CCOS_SOURCES
     src/render/RenderExecutor.cpp
 )
 
+if(CCOS_ENABLE_LOCAL_AUTOMATION_API)
+    list(APPEND CCOS_SOURCES src/api/LocalAutomationApi.cpp)
+endif()
+
 if(CCOS_ENABLE_VISION)
     find_package(OpenCV 4.8 REQUIRED COMPONENTS core imgproc video dnn imgcodecs)
     find_package(MediaPipe REQUIRED)
@@ -136,6 +141,10 @@ endif()
 if(CCOS_ENABLE_ONNXRUNTIME AND TARGET ccos_onnxruntime)
     target_link_libraries(ccos_core PUBLIC ccos_onnxruntime)
     target_compile_definitions(ccos_core PUBLIC CCOS_HAS_ONNXRUNTIME)
+endif()
+
+if(CCOS_ENABLE_LOCAL_AUTOMATION_API)
+    target_compile_definitions(ccos_core PUBLIC CCOS_HAS_LOCAL_AUTOMATION_API)
 endif()
 
 if(CCOS_ENABLE_VISION)
@@ -213,6 +222,10 @@ if(CCOS_BUILD_TESTS)
         tests/unit/api/CreativeMediaApiTest.cpp
         tests/unit/core/MitFoundationSmokeTest.cpp
     )
+
+    if(CCOS_ENABLE_LOCAL_AUTOMATION_API)
+        target_sources(ccos_tests PRIVATE tests/unit/api/LocalAutomationApiTest.cpp)
+    endif()
 
     target_link_libraries(ccos_tests PRIVATE
         ccos_core
