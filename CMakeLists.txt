@@ -199,6 +199,8 @@ if(CCOS_BUILD_TESTS)
         tests/timeline/TimelineEditorTests.cpp
         tests/timeline/KeyframeTests.cpp
         tests/media/MediaCacheTests.cpp
+        tests/media/MediaImporterTests.cpp
+        tests/media/MediaProbeTests.cpp
         tests/effects/BuiltinEffectsTests.cpp
         tests/text/SubtitleParserTests.cpp
         tests/unit/core/JobSystemSmokeTest.cpp
