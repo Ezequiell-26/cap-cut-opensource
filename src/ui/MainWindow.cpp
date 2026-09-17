@@ -32,6 +32,7 @@
 #include <QVBoxLayout>
 #include <QVideoWidget>
 #include <limits>
+#include <memory>
 
 namespace ccos::ui {
 
@@ -129,6 +130,9 @@ void MainWindow::buildUi() {
     auto* addButton = new QPushButton(QStringLiteral("Add to Timeline"), left);
     connect(addButton, &QPushButton::clicked, this, &MainWindow::addSelectedToTimeline);
     leftLayout->addWidget(addButton);
+    auto* relinkButton = new QPushButton(QStringLiteral("Relink Missing Media"), left);
+    connect(relinkButton, &QPushButton::clicked, this, &MainWindow::relinkMissingMedia);
+    leftLayout->addWidget(relinkButton);
 
     auto* center = new QWidget(split);
     auto* centerLayout = new QVBoxLayout(center);
@@ -216,6 +220,7 @@ void MainWindow::buildMenus() {
     auto* saveAction = file->addAction(QStringLiteral("Save Project")); saveAction->setShortcut(QKeySequence::Save); connect(saveAction, &QAction::triggered, this, &MainWindow::saveProject);
     file->addSeparator();
     auto* importAction = file->addAction(QStringLiteral("Import Media…")); importAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_I)); connect(importAction, &QAction::triggered, this, &MainWindow::importMedia);
+    auto* relinkAction = file->addAction(QStringLiteral("Relink Missing Media…")); connect(relinkAction, &QAction::triggered, this, &MainWindow::relinkMissingMedia);
     file->addSeparator();
     auto* quitAction = file->addAction(QStringLiteral("Quit")); quitAction->setShortcut(QKeySequence::Quit); connect(quitAction, &QAction::triggered, qApp, &QApplication::quit);
 
@@ -246,6 +251,7 @@ void MainWindow::buildMenus() {
     auto* toolbar = addToolBar(QStringLiteral("Main"));
     toolbar->setMovable(false);
     toolbar->addAction(QStringLiteral("Import"), this, &MainWindow::importMedia);
+    toolbar->addAction(QStringLiteral("Relink"), this, &MainWindow::relinkMissingMedia);
     toolbar->addAction(QStringLiteral("Save"), this, &MainWindow::saveProject);
     toolbar->addAction(QStringLiteral("Export"), this, &MainWindow::exportTimeline);
     toolbar->addSeparator();
@@ -299,6 +305,44 @@ void MainWindow::addSelectedToTimeline() {
     if (!clips.empty()) clip.setStart(clips.back().start() + clips.back().duration());
     if (!commandStack_.execute(std::make_unique<ccos::timeline::AddClipCommand>(track, clip))) return;
     refreshTimeline(); loadPreviewSource(project_.assets()[static_cast<std::size_t>(row)].path()); statusLabel_->setText(QStringLiteral("Added clip to Video 1"));
+}
+
+void MainWindow::relinkMissingMedia() {
+    const auto missing = project_.missingAssetPaths();
+    if (missing.isEmpty()) {
+        QMessageBox::information(this, QStringLiteral("Relink Missing Media"), QStringLiteral("No missing media was detected."));
+        return;
+    }
+
+    QString directory = QFileDialog::getExistingDirectory(this, QStringLiteral("Choose Folder with Replacement Media"));
+    if (directory.isEmpty()) return;
+
+    int relinked = 0;
+    int unresolved = 0;
+    for (const auto& oldPath : missing) {
+        const QFileInfo oldInfo(oldPath);
+        const QString candidate = QDir(directory).filePath(oldInfo.fileName());
+        if (!QFileInfo::exists(candidate)) { ++unresolved; continue; }
+
+        for (const auto& asset : project_.assets()) {
+            if (asset.path() == oldPath) {
+                relinked += project_.relinkAsset(asset.id(), candidate);
+                break;
+            }
+        }
+    }
+
+    refreshMediaBin();
+    refreshTimeline();
+    if (relinked > 0) {
+        statusLabel_->setText(QStringLiteral("Relinked %1 media file(s)%2")
+                              .arg(relinked)
+                              .arg(unresolved > 0 ? QStringLiteral("; %1 unresolved").arg(unresolved) : QString()));
+    } else {
+        statusLabel_->setText(QStringLiteral("No matching replacement media found"));
+        QMessageBox::warning(this, QStringLiteral("Relink Missing Media"),
+                             QStringLiteral("No files with matching filenames were found in the selected folder."));
+    }
 }
 
 void MainWindow::exportTimeline() {
@@ -363,6 +407,7 @@ void MainWindow::refreshTimeline() {
             clipItem->setText(0, QStringLiteral("Clip %1").arg(QString::fromStdString(clip.id().toString()).left(8)));
             clipItem->setText(1, QString::fromStdString(clip.start().toString()));
             clipItem->setText(2, QString::fromStdString(clip.duration().toString()));
+            clipItem->setToolTip(0, QString::fromStdString(clip.id().toString()));
         }
         trackItem->setExpanded(true);
     }
