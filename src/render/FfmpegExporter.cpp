@@ -1,6 +1,8 @@
 #include "render/FfmpegExporter.hpp"
 #include "core/ProcessRunner.hpp"
 
+#include <QFileInfo>
+
 namespace ccos::render {
 
 bool FfmpegExporter::exportAsset(const ccos::media::MediaAsset& asset, const QString& outputPath,
