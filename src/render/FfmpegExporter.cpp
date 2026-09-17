@@ -1,9 +1,19 @@
 #include "render/FfmpegExporter.hpp"
 #include "core/ProcessRunner.hpp"
+#include "render/HardwareCapabilities.hpp"
 
 #include <QFileInfo>
 
 namespace ccos::render {
+namespace {
+
+QString resolveVideoCodec(const QString& requested, const QString& executable) {
+    const QString trimmed = requested.trimmed();
+    if (trimmed != QStringLiteral("auto")) return trimmed;
+    return HardwareCapabilitiesProbe::detect(executable).preferredH264Encoder(true);
+}
+
+} // namespace
 
 bool FfmpegExporter::exportAsset(const ccos::media::MediaAsset& asset, const QString& outputPath,
                                  const ExportSettings& settings, const QString& executable, QString* error) {
@@ -14,12 +24,18 @@ bool FfmpegExporter::exportAsset(const ccos::media::MediaAsset& asset, const QSt
 
     if (!settings.validate(error)) return false;
 
+    const QString videoCodec = resolveVideoCodec(settings.videoCodec, executable);
+    if (videoCodec.isEmpty()) {
+        if (error) *error = QStringLiteral("Unable to resolve the requested video encoder");
+        return false;
+    }
+
     QStringList args{
         QStringLiteral("-y"), QStringLiteral("-i"), asset.path(),
         QStringLiteral("-vf"), QStringLiteral("scale=%1:%2:force_original_aspect_ratio=decrease,pad=%1:%2:(ow-iw)/2:(oh-ih)/2")
             .arg(settings.width).arg(settings.height),
         QStringLiteral("-r"), QString::number(settings.fps, 'f', 3),
-        QStringLiteral("-c:v"), settings.videoCodec,
+        QStringLiteral("-c:v"), videoCodec,
         QStringLiteral("-b:v"), QStringLiteral("%1k").arg(settings.videoBitrateKbps),
         QStringLiteral("-c:a"), settings.audioCodec,
         QStringLiteral("-b:a"), QStringLiteral("%1k").arg(settings.audioBitrateKbps),
