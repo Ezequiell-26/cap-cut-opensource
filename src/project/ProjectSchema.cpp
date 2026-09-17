@@ -1,78 +1,176 @@
 #include "ProjectSchema.hpp"
-#include <fstream>
-#include <sstream>
-#include <algorithm>
-#include <set>
-#include <regex>
-#include <chrono>
-#include <iomanip>
 
-// Nota: En implementación real, usar nlohmann/json o similar
-// Aquí implementamos lógica de validación básica para demostración
+#include <nlohmann/json.hpp>
+
+#include <algorithm>
+#include <chrono>
+#include <cctype>
+#include <filesystem>
+#include <fstream>
+#include <set>
+#include <sstream>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace ccos {
+namespace {
 
-// ============================================================================
-// SchemaValidationResult Implementation
-// ============================================================================
+using Json = nlohmann::json;
+
+std::optional<Json> parseJson(const std::string& content) {
+    if (content.empty()) return std::nullopt;
+    try {
+        return Json::parse(content);
+    } catch (const Json::exception&) {
+        return std::nullopt;
+    }
+}
+
+std::string nowBackupStamp() {
+    const auto now = std::chrono::system_clock::now();
+    const auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
+    return std::to_string(millis);
+}
+
+void collectIds(const Json& value, std::set<std::string>& ids, bool& unique) {
+    if (value.is_object()) {
+        for (const auto& [key, child] : value.items()) {
+            if (key == "id" && child.is_string()) {
+                const auto id = child.get<std::string>();
+                if (!ids.insert(id).second) unique = false;
+            }
+            collectIds(child, ids, unique);
+        }
+    } else if (value.is_array()) {
+        for (const auto& child : value) collectIds(child, ids, unique);
+    }
+}
+
+void collectUnknownRootFields(const Json& root,
+                              std::vector<std::string>& unknownFields,
+                              std::vector<std::string>& warnings) {
+    static const std::set<std::string> knownFields = {
+        "schemaVersion", "id", "name", "description", "createdAt", "updatedAt",
+        "videoTracks", "audioTracks", "clips", "assets", "effects", "transitions",
+        "subtitles", "markers", "settings", "metadata", "keyframes"
+    };
+
+    for (const auto& [key, value] : root.items()) {
+        (void)value;
+        if (knownFields.find(key) == knownFields.end()) {
+            unknownFields.push_back(key);
+            warnings.push_back("Campo desconocido: " + key);
+        }
+    }
+}
+
+bool isBalancedJsonPrefix(const std::string& text) {
+    int braces = 0;
+    int brackets = 0;
+    bool inString = false;
+    bool escaped = false;
+
+    for (const char ch : text) {
+        if (escaped) {
+            escaped = false;
+            continue;
+        }
+        if (inString && ch == '\\') {
+            escaped = true;
+            continue;
+        }
+        if (ch == '"') {
+            inString = !inString;
+            continue;
+        }
+        if (inString) continue;
+
+        if (ch == '{') ++braces;
+        else if (ch == '}') {
+            if (--braces < 0) return false;
+        } else if (ch == '[') ++brackets;
+        else if (ch == ']') {
+            if (--brackets < 0) return false;
+        }
+    }
+
+    return !inString && braces >= 0 && brackets >= 0;
+}
+
+void appendMissingClosers(std::string& text) {
+    int braces = 0;
+    int brackets = 0;
+    bool inString = false;
+    bool escaped = false;
+
+    for (const char ch : text) {
+        if (escaped) {
+            escaped = false;
+            continue;
+        }
+        if (inString && ch == '\\') {
+            escaped = true;
+            continue;
+        }
+        if (ch == '"') {
+            inString = !inString;
+            continue;
+        }
+        if (inString) continue;
+        if (ch == '{') ++braces;
+        else if (ch == '}') --braces;
+        else if (ch == '[') ++brackets;
+        else if (ch == ']') --brackets;
+    }
+
+    if (inString || braces < 0 || brackets < 0) return;
+
+    while (brackets-- > 0) text.push_back(']');
+    while (braces-- > 0) text.push_back('}');
+}
+
+bool addEmptyArrayField(std::string& content, const char* field, const char* version) {
+    auto parsed = parseJson(content);
+    if (!parsed || !parsed->is_object()) return false;
+    Json root = std::move(*parsed);
+    if (!root.contains(field)) root[field] = Json::array();
+    root["schemaVersion"] = version;
+    content = root.dump(2) + "\n";
+    return true;
+}
+
+} // namespace
 
 std::string SchemaValidationResult::toString() const {
     std::ostringstream oss;
     oss << "Schema Validation Result:\n";
     oss << "  Valid: " << (isValid ? "YES" : "NO") << "\n";
     oss << "  Version: " << version << "\n";
-    
+
     if (!errors.empty()) {
         oss << "  Errors (" << errors.size() << "):\n";
-        for (const auto& err : errors) {
-            oss << "    - " << err << "\n";
-        }
+        for (const auto& err : errors) oss << "    - " << err << "\n";
     }
-    
     if (!warnings.empty()) {
         oss << "  Warnings (" << warnings.size() << "):\n";
-        for (const auto& warn : warnings) {
-            oss << "    - " << warn << "\n";
-        }
+        for (const auto& warning : warnings) oss << "    - " << warning << "\n";
     }
-    
     if (!unknownFields.empty()) {
         oss << "  Unknown Fields (" << unknownFields.size() << "):\n";
-        for (const auto& field : unknownFields) {
-            oss << "    - " << field << "\n";
-        }
+        for (const auto& field : unknownFields) oss << "    - " << field << "\n";
     }
-    
     return oss.str();
 }
-
-// ============================================================================
-// ProjectValidator::ValidationReport Implementation
-// ============================================================================
 
 std::string ProjectValidator::ValidationReport::summary() const {
     std::ostringstream oss;
-    oss << "Validation Summary: ";
-    
-    if (isValid) {
-        oss << "PASSED";
-    } else {
-        oss << "FAILED";
-    }
-    
-    oss << " | Errors: " << errors.size();
-    oss << " | Warnings: " << warnings.size();
-    
-    if (!fixedIssues.empty()) {
-        oss << " | Fixed: " << fixedIssues.size();
-    }
-    
+    oss << "Validation Summary: " << (isValid ? "PASSED" : "FAILED")
+        << " | Errors: " << errors.size()
+        << " | Warnings: " << warnings.size();
+    if (!fixedIssues.empty()) oss << " | Fixed: " << fixedIssues.size();
     return oss.str();
 }
-
-// ============================================================================
-// ProjectSchemaManager Implementation
-// ============================================================================
 
 ProjectSchemaManager& ProjectSchemaManager::instance() {
     static ProjectSchemaManager instance;
@@ -86,83 +184,54 @@ ProjectSchemaManager::ProjectSchemaManager() {
 ProjectSchemaManager::~ProjectSchemaManager() = default;
 
 void ProjectSchemaManager::initializeDefaultMigrations() {
-    // Migración V1.0.0 -> V1.1.0: Soporte para múltiples pistas de audio
     MigrationInfo v1_0_0_to_v1_1_0;
     v1_0_0_to_v1_1_0.fromVersion = ProjectSchemaVersion::V1_0_0;
     v1_0_0_to_v1_1_0.toVersion = ProjectSchemaVersion::V1_1_0;
     v1_0_0_to_v1_1_0.description = "Agregar soporte para múltiples pistas de audio";
     v1_0_0_to_v1_1_0.isBreaking = false;
-    v1_0_0_to_v1_1_0.migrateFunction = [](const std::string& input, std::string& output) -> bool {
-        // Implementación simplificada - en producción usar parser JSON real
+    v1_0_0_to_v1_1_0.migrateFunction = [](const std::string& input, std::string& output) {
         output = input;
-        // Agregar campo audioTracks si no existe
-        if (output.find("\"audioTracks\"") == std::string::npos) {
-            // Insertar audioTracks vacío después de videoTracks
-            size_t pos = output.find("\"videoTracks\"");
-            if (pos != std::string::npos) {
-                // Buscar el cierre del array de videoTracks
-                int bracketCount = 0;
-                size_t endPos = pos;
-                while (endPos < output.size()) {
-                    if (output[endPos] == '[') bracketCount++;
-                    if (output[endPos] == ']') bracketCount--;
-                    if (bracketCount == 0) break;
-                    endPos++;
-                }
-                if (endPos < output.size()) {
-                    output.insert(endPos + 1, ",\n    \"audioTracks\": []");
-                    return true;
-                }
-            }
-        }
-        return true;
+        return addEmptyArrayField(output, "audioTracks", "1.1.0");
     };
     migrations_.push_back(v1_0_0_to_v1_1_0);
-    
-    // Migración V1.1.0 -> V1.2.0: Soporte para efectos y transiciones
+
     MigrationInfo v1_1_0_to_v1_2_0;
     v1_1_0_to_v1_2_0.fromVersion = ProjectSchemaVersion::V1_1_0;
     v1_1_0_to_v1_2_0.toVersion = ProjectSchemaVersion::V1_2_0;
     v1_1_0_to_v1_2_0.description = "Agregar soporte para efectos y transiciones";
     v1_1_0_to_v1_2_0.isBreaking = false;
-    v1_1_0_to_v1_2_0.migrateFunction = [](const std::string& input, std::string& output) -> bool {
+    v1_1_0_to_v1_2_0.migrateFunction = [](const std::string& input, std::string& output) {
         output = input;
-        // Agregar campos effects y transitions si no existen
-        if (output.find("\"effects\"") == std::string::npos) {
-            output.insert(output.size() - 2, ",\n    \"effects\": []");
-        }
-        if (output.find("\"transitions\"") == std::string::npos) {
-            output.insert(output.size() - 2, ",\n    \"transitions\": []");
-        }
+        auto parsed = parseJson(output);
+        if (!parsed || !parsed->is_object()) return false;
+        Json root = std::move(*parsed);
+        if (!root.contains("effects")) root["effects"] = Json::array();
+        if (!root.contains("transitions")) root["transitions"] = Json::array();
+        root["schemaVersion"] = "1.2.0";
+        output = root.dump(2) + "\n";
         return true;
     };
     migrations_.push_back(v1_1_0_to_v1_2_0);
-    
-    // Migración V1.2.0 -> V1.3.0: Soporte para subtítulos
+
     MigrationInfo v1_2_0_to_v1_3_0;
     v1_2_0_to_v1_3_0.fromVersion = ProjectSchemaVersion::V1_2_0;
     v1_2_0_to_v1_3_0.toVersion = ProjectSchemaVersion::V1_3_0;
     v1_2_0_to_v1_3_0.description = "Agregar soporte para subtítulos";
     v1_2_0_to_v1_3_0.isBreaking = false;
-    v1_2_0_to_v1_3_0.migrateFunction = [](const std::string& input, std::string& output) -> bool {
+    v1_2_0_to_v1_3_0.migrateFunction = [](const std::string& input, std::string& output) {
         output = input;
-        if (output.find("\"subtitles\"") == std::string::npos) {
-            output.insert(output.size() - 2, ",\n    \"subtitles\": []");
-        }
-        return true;
+        return addEmptyArrayField(output, "subtitles", "1.3.0");
     };
     migrations_.push_back(v1_2_0_to_v1_3_0);
-    
-    // Migración V1.3.0 -> V1.4.0: Soporte para keyframes
+
     MigrationInfo v1_3_0_to_v1_4_0;
     v1_3_0_to_v1_4_0.fromVersion = ProjectSchemaVersion::V1_3_0;
     v1_3_0_to_v1_4_0.toVersion = ProjectSchemaVersion::V1_4_0;
     v1_3_0_to_v1_4_0.description = "Agregar soporte para keyframes en efectos";
     v1_3_0_to_v1_4_0.isBreaking = false;
-    v1_3_0_to_v1_4_0.migrateFunction = [](const std::string& input, std::string& output) -> bool {
+    v1_3_0_to_v1_4_0.migrateFunction = [](const std::string& input, std::string& output) {
         output = input;
-        // Los proyectos antiguos no tienen keyframes, es compatible hacia atrás
-        return true;
+        return addEmptyArrayField(output, "keyframes", "1.4.0");
     };
     migrations_.push_back(v1_3_0_to_v1_4_0);
 }
@@ -182,255 +251,144 @@ std::optional<ProjectSchemaVersion> ProjectSchemaManager::parseVersion(const std
 
 std::string ProjectSchemaManager::versionToString(ProjectSchemaVersion version) const {
     switch (version) {
-        case ProjectSchemaVersion::V1_0_0: return "1.0.0";
-        case ProjectSchemaVersion::V1_1_0: return "1.1.0";
-        case ProjectSchemaVersion::V1_2_0: return "1.2.0";
-        case ProjectSchemaVersion::V1_3_0: return "1.3.0";
-        case ProjectSchemaVersion::V1_4_0: return "1.4.0";
-        default: return "unknown";
+    case ProjectSchemaVersion::V1_0_0: return "1.0.0";
+    case ProjectSchemaVersion::V1_1_0: return "1.1.0";
+    case ProjectSchemaVersion::V1_2_0: return "1.2.0";
+    case ProjectSchemaVersion::V1_3_0: return "1.3.0";
+    case ProjectSchemaVersion::V1_4_0: return "1.4.0";
+    default: return "unknown";
     }
 }
 
 std::optional<ProjectSchemaVersion> ProjectSchemaManager::detectVersion(const std::string& jsonContent) const {
-    // Detectar versión buscando el campo schemaVersion
-    std::regex versionRegex(R"("schemaVersion"\s*:\s*"([^"]+)")");
-    std::smatch match;
-    
-    if (std::regex_search(jsonContent, match, versionRegex) && match.size() > 1) {
-        return parseVersion(match[1].str());
+    const auto parsed = parseJson(jsonContent);
+    if (!parsed || !parsed->is_object()) return std::nullopt;
+
+    const Json& root = *parsed;
+    if (root.contains("schemaVersion") && root["schemaVersion"].is_string()) {
+        return parseVersion(root["schemaVersion"].get<std::string>());
     }
-    
-    // Si no hay schemaVersion, intentar detectar por características
-    if (jsonContent.find("\"keyframes\"") != std::string::npos) {
-        return ProjectSchemaVersion::V1_4_0;
-    }
-    if (jsonContent.find("\"subtitles\"") != std::string::npos) {
-        return ProjectSchemaVersion::V1_3_0;
-    }
-    if (jsonContent.find("\"effects\"") != std::string::npos || 
-        jsonContent.find("\"transitions\"") != std::string::npos) {
-        return ProjectSchemaVersion::V1_2_0;
-    }
-    if (jsonContent.find("\"audioTracks\"") != std::string::npos) {
-        return ProjectSchemaVersion::V1_1_0;
-    }
-    
-    // Asumir V1.0.0 como fallback
+
+    if (root.contains("keyframes")) return ProjectSchemaVersion::V1_4_0;
+    if (root.contains("subtitles")) return ProjectSchemaVersion::V1_3_0;
+    if (root.contains("effects") || root.contains("transitions")) return ProjectSchemaVersion::V1_2_0;
+    if (root.contains("audioTracks")) return ProjectSchemaVersion::V1_1_0;
     return ProjectSchemaVersion::V1_0_0;
 }
 
 SchemaValidationResult ProjectSchemaManager::validate(const std::string& jsonContent) const {
     SchemaValidationResult result;
-    
-    // Verificar que sea JSON válido (básico)
     if (jsonContent.empty()) {
         result.errors.push_back("Contenido vacío");
         return result;
     }
-    
-    // Detectar versión
-    auto detectedVersion = detectVersion(jsonContent);
+
+    const auto parsed = parseJson(jsonContent);
+    if (!parsed) {
+        result.errors.push_back("JSON inválido");
+        return result;
+    }
+    if (!parsed->is_object()) {
+        result.errors.push_back("La raíz del proyecto debe ser un objeto JSON");
+        return result;
+    }
+
+    const auto detectedVersion = detectVersion(jsonContent);
     if (!detectedVersion.has_value()) {
         result.errors.push_back("No se pudo detectar la versión del schema");
         return result;
     }
-    
-    result.version = versionToString(detectedVersion.value());
-    
-    // Campos requeridos básicos
-    std::vector<std::string> requiredFields = {"schemaVersion", "id", "name", "createdAt"};
-    for (const auto& field : requiredFields) {
-        if (jsonContent.find("\"" + field + "\"") == std::string::npos) {
-            result.errors.push_back("Campo requerido faltante: " + field);
+    result.version = versionToString(*detectedVersion);
+
+    if (!parsed->contains("schemaVersion")) {
+        result.warnings.push_back("Falta schemaVersion; se utilizará detección por compatibilidad");
+    } else if (!(*parsed)["schemaVersion"].is_string()) {
+        result.errors.push_back("schemaVersion debe ser una cadena");
+    }
+
+    for (const auto* field : {"id", "name", "createdAt"}) {
+        if (!parsed->contains(field)) {
+            result.errors.push_back(std::string("Campo requerido faltante: ") + field);
+        } else if (!(*parsed)[field].is_string()) {
+            result.errors.push_back(std::string("Campo requerido inválido: ") + field);
         }
     }
-    
-    // Validar estructura básica
-    if (jsonContent.front() != '{' || jsonContent.back() != '}') {
-        result.errors.push_back("JSON malformado: debe comenzar con { y terminar con }");
-    }
-    
-    // Verificar brackets balanceados
-    int braceCount = 0;
-    int bracketCount = 0;
-    for (char c : jsonContent) {
-        if (c == '{') braceCount++;
-        if (c == '}') braceCount--;
-        if (c == '[') bracketCount++;
-        if (c == ']') bracketCount--;
-        
-        if (braceCount < 0 || bracketCount < 0) {
-            result.errors.push_back("Brackets desbalanceados");
-            break;
-        }
-    }
-    
-    if (braceCount != 0) {
-        result.errors.push_back("Llaves desbalanceadas");
-    }
-    if (bracketCount != 0) {
-        result.errors.push_back("Corchetes desbalanceados");
-    }
-    
-    // Detectar campos desconocidos (warning)
-    std::set<std::string> knownFields = {
-        "schemaVersion", "id", "name", "description", "createdAt", "updatedAt",
-        "videoTracks", "audioTracks", "clips", "assets", "effects", "transitions",
-        "subtitles", "markers", "settings", "metadata", "keyframes"
-    };
-    
-    std::regex fieldRegex(R"("([a-zA-Z_][a-zA-Z0-9_]*)"\s*:)");
-    auto fieldsBegin = std::sregex_iterator(jsonContent.begin(), jsonContent.end(), fieldRegex);
-    auto fieldsEnd = std::sregex_iterator();
-    
-    for (auto it = fieldsBegin; it != fieldsEnd; ++it) {
-        std::string fieldName = (*it)[1].str();
-        if (knownFields.find(fieldName) == knownFields.end()) {
-            result.unknownFields.push_back(fieldName);
-            result.warnings.push_back("Campo desconocido: " + fieldName);
-        }
-    }
-    
+
+    collectUnknownRootFields(*parsed, result.unknownFields, result.warnings);
     result.isValid = result.errors.empty();
     return result;
 }
 
 bool ProjectSchemaManager::migrateToCurrent(std::string& jsonContent) {
-    auto currentDetected = detectVersion(jsonContent);
-    if (!currentDetected.has_value()) {
-        return false;
-    }
-    
     return migrateTo(jsonContent, ProjectSchemaVersion::CURRENT);
 }
 
 bool ProjectSchemaManager::migrateTo(std::string& jsonContent, ProjectSchemaVersion targetVersion) {
     auto currentDetected = detectVersion(jsonContent);
-    if (!currentDetected.has_value()) {
-        return false;
-    }
-    
-    ProjectSchemaVersion current = currentDetected.value();
-    
-    if (current == targetVersion) {
-        return true; // Ya está en la versión objetivo
-    }
-    
-    if (current > targetVersion) {
-        // No soportamos downgrade automáticamente
-        return false;
-    }
-    
-    // Aplicar migraciones secuenciales
+    if (!currentDetected.has_value()) return false;
+    if (currentDetected == targetVersion) return true;
+    if (*currentDetected > targetVersion) return false;
+
     std::string workingContent = jsonContent;
-    ProjectSchemaVersion workingVersion = current;
-    
+    auto workingVersion = *currentDetected;
+
     while (workingVersion < targetVersion) {
         bool migrationFound = false;
-        
         for (const auto& migration : migrations_) {
-            if (migration.fromVersion == workingVersion && migration.toVersion <= targetVersion) {
-                std::string nextContent;
-                if (migration.migrateFunction(workingContent, nextContent)) {
-                    workingContent = nextContent;
-                    workingVersion = migration.toVersion;
-                    migrationFound = true;
-                    break;
-                }
-            }
+            if (migration.fromVersion != workingVersion || migration.toVersion > targetVersion) continue;
+            std::string nextContent;
+            if (!migration.migrateFunction || !migration.migrateFunction(workingContent, nextContent)) return false;
+            if (!detectVersion(nextContent).has_value()) return false;
+            workingContent = std::move(nextContent);
+            workingVersion = migration.toVersion;
+            migrationFound = true;
+            break;
         }
-        
-        if (!migrationFound) {
-            // No se encontró migración para esta versión
-            return false;
-        }
+        if (!migrationFound) return false;
     }
-    
-    jsonContent = workingContent;
+
+    jsonContent = std::move(workingContent);
     return true;
 }
 
 void ProjectSchemaManager::registerMigration(MigrationInfo info) {
-    migrations_.push_back(info);
+    if (!info.migrateFunction) return;
+    migrations_.push_back(std::move(info));
+    std::sort(migrations_.begin(), migrations_.end(), [](const auto& lhs, const auto& rhs) {
+        if (lhs.fromVersion != rhs.fromVersion) return lhs.fromVersion < rhs.fromVersion;
+        return lhs.toVersion < rhs.toVersion;
+    });
 }
 
 bool ProjectSchemaManager::isCorrupted(const std::string& jsonContent) const {
     if (jsonContent.empty()) return true;
-    
-    // Verificaciones básicas de corrupción
-    int braceCount = 0;
-    int bracketCount = 0;
-    
-    for (char c : jsonContent) {
-        if (c == '{') braceCount++;
-        if (c == '}') braceCount--;
-        if (c == '[') bracketCount++;
-        if (c == ']') bracketCount--;
-        
-        if (braceCount < 0 || bracketCount < 0) return true;
-    }
-    
-    return (braceCount != 0 || bracketCount != 0);
+    if (!isBalancedJsonPrefix(jsonContent)) return true;
+    return !parseJson(jsonContent).has_value();
 }
 
 std::optional<std::string> ProjectSchemaManager::attemptRepair(const std::string& jsonContent) const {
-    if (!isCorrupted(jsonContent)) {
-        return jsonContent; // No necesita reparación
-    }
-    
+    if (jsonContent.empty()) return std::nullopt;
+    if (!isCorrupted(jsonContent)) return jsonContent;
+    if (!isBalancedJsonPrefix(jsonContent)) return std::nullopt;
+
     std::string repaired = jsonContent;
-    
-    // Intentar reparar brackets desbalanceados
-    int braceCount = 0;
-    int bracketCount = 0;
-    
-    for (char c : repaired) {
-        if (c == '{') braceCount++;
-        if (c == '}') braceCount--;
-        if (c == '[') bracketCount++;
-        if (c == ']') bracketCount--;
-    }
-    
-    // Agregar brackets faltantes al final
-    while (braceCount < 0) {
-        repaired += '}';
-        braceCount++;
-    }
-    while (bracketCount < 0) {
-        repaired += ']';
-        bracketCount++;
-    }
-    
-    // Eliminar brackets sobrantes del final
-    while (braceCount > 0 && !repaired.empty() && repaired.back() == '{') {
-        repaired.pop_back();
-        braceCount--;
-    }
-    while (bracketCount > 0 && !repaired.empty() && repaired.back() == '[') {
-        repaired.pop_back();
-        bracketCount--;
-    }
-    
-    // Verificar si la reparación fue exitosa
-    if (!isCorrupted(repaired)) {
-        return repaired;
-    }
-    
-    return std::nullopt; // No se pudo reparar
+    appendMissingClosers(repaired);
+    const auto parsed = parseJson(repaired);
+    if (!parsed) return std::nullopt;
+    return parsed->dump(2) + "\n";
 }
 
 ProjectSchemaManager::CompatibilityInfo ProjectSchemaManager::checkCompatibility(const std::string& jsonContent) const {
     CompatibilityInfo info;
     info.currentVersion = currentVersion_;
-    
-    auto detectedVersion = detectVersion(jsonContent);
+
+    const auto detectedVersion = detectVersion(jsonContent);
     if (!detectedVersion.has_value()) {
         info.message = "No se pudo detectar la versión del proyecto";
         return info;
     }
-    
-    info.projectVersion = detectedVersion.value();
-    
+
+    info.projectVersion = *detectedVersion;
     if (info.projectVersion == info.currentVersion) {
         info.isCompatible = true;
         info.requiresMigration = false;
@@ -438,210 +396,309 @@ ProjectSchemaManager::CompatibilityInfo ProjectSchemaManager::checkCompatibility
     } else if (info.projectVersion < info.currentVersion) {
         info.isCompatible = true;
         info.requiresMigration = true;
-        info.message = "Proyecto requiere migración de " + 
-                       versionToString(info.projectVersion) + " a " + 
+        info.message = "Proyecto requiere migración de " +
+                       versionToString(info.projectVersion) + " a " +
                        versionToString(info.currentVersion);
     } else {
         info.isCompatible = false;
         info.requiresMigration = false;
         info.message = "Proyecto creado con versión futura incompatible";
     }
-    
     return info;
 }
 
-// ============================================================================
-// ProjectSerializer Implementation
-// ============================================================================
+std::string ProjectSerializer::serialize(const std::string& projectData, const SerializeOptions& options) {
+    auto parsed = parseJson(projectData);
+    if (!parsed || !parsed->is_object()) return {};
 
-std::string ProjectSerializer::serialize(const std::string& projectData,
-                                         const SerializeOptions& options) {
-    // En producción, usar parser JSON real
-    // Aquí retornamos los datos tal cual (simplificación)
-    return projectData;
+    std::string normalized = parsed->dump(options.prettyPrint ? 2 : -1);
+    auto& schemaMgr = ProjectSchemaManager::instance();
+    if (options.targetVersion != ProjectSchemaVersion::UNKNOWN) {
+        if (!schemaMgr.migrateTo(normalized, options.targetVersion)) {
+            if (!schemaMgr.detectVersion(normalized).has_value()) return {};
+        }
+    }
+
+    if (!options.includeMetadata) {
+        const auto normalizedParsed = parseJson(normalized);
+        if (!normalizedParsed || !normalizedParsed->is_object()) return {};
+        Json root = std::move(*normalizedParsed);
+        root.erase("metadata");
+        normalized = root.dump(options.prettyPrint ? 2 : -1);
+    }
+
+    if (options.validateBeforeSerialize && !schemaMgr.validate(normalized).isValid) return {};
+    if (!normalized.empty() && normalized.back() != '\n') normalized.push_back('\n');
+    return normalized;
 }
 
 std::pair<std::string, SchemaValidationResult> ProjectSerializer::deserialize(const std::string& jsonContent) {
+    std::string content = jsonContent;
     auto& schemaMgr = ProjectSchemaManager::instance();
-    auto validationResult = schemaMgr.validate(jsonContent);
-    
-    return {jsonContent, validationResult};
+    if (!schemaMgr.migrateToCurrent(content)) {
+        SchemaValidationResult error;
+        error.errors.push_back("No se pudo migrar el proyecto al schema actual");
+        return {jsonContent, error};
+    }
+    const auto validationResult = schemaMgr.validate(content);
+    return {content, validationResult};
 }
 
 bool ProjectSerializer::saveToFile(const std::string& filePath,
                                    const std::string& projectData,
                                    const SerializeOptions& options) {
-    // Validar antes de guardar
-    if (options.validateBeforeSerialize) {
-        auto& schemaMgr = ProjectSchemaManager::instance();
-        auto result = schemaMgr.validate(projectData);
-        if (!result.isValid) {
+    const std::string serialized = serialize(projectData, options);
+    if (serialized.empty()) return false;
+
+    createBackup(filePath);
+
+    const std::string tempPath = filePath + ".tmp." + nowBackupStamp();
+    {
+        std::ofstream file(tempPath, std::ios::binary | std::ios::trunc);
+        if (!file.is_open()) return false;
+        file.write(serialized.data(), static_cast<std::streamsize>(serialized.size()));
+        file.flush();
+        if (!file.good()) {
+            file.close();
+            std::error_code removeError;
+            std::filesystem::remove(tempPath, removeError);
             return false;
         }
     }
-    
-    // Crear backup
-    createBackup(filePath);
-    
-    std::ofstream file(filePath);
-    if (!file.is_open()) {
+
+    std::error_code renameError;
+    std::filesystem::remove(filePath, renameError);
+    renameError.clear();
+    std::filesystem::rename(tempPath, filePath, renameError);
+    if (renameError) {
+        std::error_code removeError;
+        std::filesystem::remove(tempPath, removeError);
         return false;
     }
-    
-    file << projectData;
-    return file.good();
+    return true;
 }
 
 std::pair<std::string, SchemaValidationResult> ProjectSerializer::loadFromFile(const std::string& filePath) {
-    std::ifstream file(filePath);
+    std::ifstream file(filePath, std::ios::binary);
     if (!file.is_open()) {
         SchemaValidationResult error;
         error.errors.push_back("No se pudo abrir el archivo: " + filePath);
         return {"", error};
     }
-    
+
     std::stringstream buffer;
     buffer << file.rdbuf();
-    std::string content = buffer.str();
-    
-    // Migrar automáticamente si es necesario
-    auto& schemaMgr = ProjectSchemaManager::instance();
-    if (schemaMgr.migrateToCurrent(content)) {
-        // Migración exitosa
+    if (!file.good() && !file.eof()) {
+        SchemaValidationResult error;
+        error.errors.push_back("Error leyendo el archivo: " + filePath);
+        return {"", error};
     }
-    
-    auto validationResult = schemaMgr.validate(content);
-    return {content, validationResult};
+
+    return deserialize(buffer.str());
 }
 
 std::string ProjectSerializer::createBackup(const std::string& filePath) {
-    // Generar nombre de backup con timestamp
-    auto now = std::chrono::system_clock::now();
-    auto time = std::chrono::system_clock::to_time_t(now);
-    std::stringstream ss;
-    ss << std::put_time(std::localtime(&time), "%Y%m%d_%H%M%S");
-    std::string timestamp = ss.str();
-    
-    std::string backupPath = filePath + ".backup." + timestamp;
-    
-    // Copiar archivo original a backup
     std::ifstream src(filePath, std::ios::binary);
-    if (!src.is_open()) {
-        return "";
-    }
-    
-    std::ofstream dst(backupPath, std::ios::binary);
-    if (!dst.is_open()) {
-        return "";
-    }
-    
+    if (!src.is_open()) return {};
+
+    const std::string backupPath = filePath + ".backup." + nowBackupStamp();
+    std::ofstream dst(backupPath, std::ios::binary | std::ios::trunc);
+    if (!dst.is_open()) return {};
+
     dst << src.rdbuf();
+    if (!dst.good()) {
+        dst.close();
+        std::error_code removeError;
+        std::filesystem::remove(backupPath, removeError);
+        return {};
+    }
     return backupPath;
 }
 
 bool ProjectSerializer::restoreFromBackup(const std::string& backupPath, const std::string& targetPath) {
     std::ifstream src(backupPath, std::ios::binary);
-    if (!src.is_open()) {
-        return false;
-    }
-    
-    std::ofstream dst(targetPath, std::ios::binary);
-    if (!dst.is_open()) {
-        return false;
-    }
-    
-    dst << src.rdbuf();
-    return dst.good();
-}
+    if (!src.is_open()) return false;
 
-// ============================================================================
-// ProjectValidator Implementation
-// ============================================================================
+    const std::string tempPath = targetPath + ".restore." + nowBackupStamp();
+    std::ofstream dst(tempPath, std::ios::binary | std::ios::trunc);
+    if (!dst.is_open()) return false;
+
+    dst << src.rdbuf();
+    dst.flush();
+    if (!dst.good()) {
+        dst.close();
+        std::error_code removeError;
+        std::filesystem::remove(tempPath, removeError);
+        return false;
+    }
+    dst.close();
+
+    std::error_code renameError;
+    std::filesystem::remove(targetPath, renameError);
+    renameError.clear();
+    std::filesystem::rename(tempPath, targetPath, renameError);
+    if (renameError) {
+        std::error_code removeError;
+        std::filesystem::remove(tempPath, removeError);
+        return false;
+    }
+    return true;
+}
 
 ProjectValidator::ValidationReport ProjectValidator::validate(const std::string& projectData) {
     ValidationReport report;
-    
-    // Validar IDs únicos
+    const auto schema = ProjectSchemaManager::instance().validate(projectData);
+    if (!schema.isValid) {
+        report.errors = schema.errors;
+        report.hasErrors = true;
+        report.isValid = false;
+        report.warnings = schema.warnings;
+        report.hasWarnings = !report.warnings.empty();
+        return report;
+    }
+
+    const auto parsed = parseJson(projectData);
+    if (!parsed) {
+        report.errors.push_back("JSON inválido");
+        report.hasErrors = true;
+        return report;
+    }
+
     if (!validateUniqueIds(projectData)) {
         report.errors.push_back("IDs duplicados encontrados");
         report.hasErrors = true;
     }
-    
-    // Validar referencias cruzadas
     if (!validateCrossReferences(projectData)) {
         report.errors.push_back("Referencias cruzadas inválidas");
         report.hasErrors = true;
     }
-    
-    // Validar timings
     if (!validateTimings(projectData)) {
         report.errors.push_back("Tiempos inválidos");
         report.hasErrors = true;
     }
-    
-    // Validar assets
     if (!validateAssets(projectData)) {
         report.warnings.push_back("Algunos assets no están disponibles");
         report.hasWarnings = true;
     }
-    
+
     report.isValid = !report.hasErrors;
     return report;
 }
 
 bool ProjectValidator::validateUniqueIds(const std::string& projectData) {
-    // Extraer todos los IDs y verificar unicidad
-    std::regex idRegex(R"("id"\s*:\s*"([^"]+)")");
+    const auto parsed = parseJson(projectData);
+    if (!parsed) return false;
     std::set<std::string> ids;
-    
-    auto begin = std::sregex_iterator(projectData.begin(), projectData.end(), idRegex);
-    auto end = std::sregex_iterator();
-    
-    for (auto it = begin; it != end; ++it) {
-        std::string id = (*it)[1].str();
-        if (ids.find(id) != ids.end()) {
-            return false; // ID duplicado
-        }
-        ids.insert(id);
-    }
-    
-    return true;
+    bool unique = true;
+    collectIds(*parsed, ids, unique);
+    return unique;
 }
 
 bool ProjectValidator::validateCrossReferences(const std::string& projectData) {
-    // Verificar que todas las referencias a assets/clips existan
-    // Implementación simplificada
-    return true;
+    const auto parsed = parseJson(projectData);
+    if (!parsed || !parsed->is_object()) return false;
+
+    std::set<std::string> assetIds;
+    std::set<std::string> clipIds;
+    std::set<std::string> trackIds;
+
+    const Json& root = *parsed;
+    if (root.contains("assets") && root["assets"].is_array()) {
+        for (const auto& asset : root["assets"]) {
+            if (asset.is_object() && asset.contains("id") && asset["id"].is_string()) assetIds.insert(asset["id"].get<std::string>());
+        }
+    }
+    if (root.contains("clips") && root["clips"].is_array()) {
+        for (const auto& clip : root["clips"]) {
+            if (clip.is_object() && clip.contains("id") && clip["id"].is_string()) clipIds.insert(clip["id"].get<std::string>());
+        }
+    }
+    for (const char* trackGroup : {"videoTracks", "audioTracks"}) {
+        if (!root.contains(trackGroup) || !root[trackGroup].is_array()) continue;
+        for (const auto& track : root[trackGroup]) {
+            if (track.is_object() && track.contains("id") && track["id"].is_string()) trackIds.insert(track["id"].get<std::string>());
+        }
+    }
+
+    bool valid = true;
+    std::function<void(const Json&)> visit = [&](const Json& value) {
+        if (value.is_object()) {
+            for (const auto& [key, child] : value.items()) {
+                if (child.is_string()) {
+                    const auto ref = child.get<std::string>();
+                    if (key == "assetId" && !assetIds.empty() && assetIds.count(ref) == 0) valid = false;
+                    if (key == "clipId" && !clipIds.empty() && clipIds.count(ref) == 0) valid = false;
+                    if (key == "trackId" && !trackIds.empty() && trackIds.count(ref) == 0) valid = false;
+                }
+                visit(child);
+            }
+        } else if (value.is_array()) {
+            for (const auto& child : value) visit(child);
+        }
+    };
+    visit(root);
+    return valid;
 }
 
 bool ProjectValidator::validateTimings(const std::string& projectData) {
-    // Verificar que los tiempos sean consistentes
-    // Implementación simplificada
-    return true;
+    const auto parsed = parseJson(projectData);
+    if (!parsed) return false;
+
+    bool valid = true;
+    std::function<void(const Json&)> visit = [&](const Json& value) {
+        if (value.is_object()) {
+            double start = 0.0;
+            double end = 0.0;
+            bool hasStart = false;
+            bool hasEnd = false;
+            for (const auto& [key, child] : value.items()) {
+                if (key == "start" || key == "startTime" || key == "startTimeMs") {
+                    if (child.is_number()) {
+                        start = child.get<double>();
+                        hasStart = true;
+                    }
+                }
+                if (key == "end" || key == "endTime" || key == "endTimeMs") {
+                    if (child.is_number()) {
+                        end = child.get<double>();
+                        hasEnd = true;
+                    }
+                }
+                visit(child);
+            }
+            if (hasStart && start < 0.0) valid = false;
+            if (hasEnd && end < 0.0) valid = false;
+            if (hasStart && hasEnd && end < start) valid = false;
+        } else if (value.is_array()) {
+            for (const auto& child : value) visit(child);
+        }
+    };
+    visit(*parsed);
+    return valid;
 }
 
 bool ProjectValidator::validateAssets(const std::string& projectData) {
-    // Verificar existencia de archivos referenciados
-    // Implementación simplificada
+    const auto parsed = parseJson(projectData);
+    if (!parsed || !parsed->is_object()) return false;
+    if (!parsed->contains("assets") || !(*parsed)["assets"].is_array()) return true;
+
+    // Asset paths are external resources and may legitimately be unavailable on another machine.
+    // We therefore validate their shape here, leaving physical availability as a warning layer.
+    for (const auto& asset : (*parsed)["assets"]) {
+        if (!asset.is_object()) return false;
+        if (asset.contains("path") && !asset["path"].is_string()) return false;
+    }
     return true;
 }
 
 std::pair<std::string, ProjectValidator::ValidationReport> ProjectValidator::autoFix(const std::string& projectData) {
-    ValidationReport report;
-    std::string fixed = projectData;
-    
-    // Auto-fixes comunes podrían aplicarse aquí
-    
-    report.fixedIssues = report.errors; // Simular que se arreglaron los errores
-    report.errors.clear();
-    report.isValid = true;
-    
-    return {fixed, report};
-}
+    ValidationReport report = validate(projectData);
+    if (!report.isValid) return {projectData, report};
 
-// ============================================================================
-// ProjectFixtures Implementation
-// ============================================================================
+    // Only report fixes that are actually applied. No silent mutation of IDs or timings.
+    report.fixedIssues.clear();
+    return {projectData, report};
+}
 
 std::string ProjectFixtures::createMinimalValidProject() {
     return R"({
@@ -660,7 +717,8 @@ std::string ProjectFixtures::createMinimalValidProject() {
     "subtitles": [],
     "markers": [],
     "settings": {},
-    "metadata": {}
+    "metadata": {},
+    "keyframes": []
 })";
 }
 
@@ -673,22 +731,10 @@ std::string ProjectFixtures::createFullValidProject() {
     "createdAt": "2024-01-01T00:00:00Z",
     "updatedAt": "2024-01-01T00:00:00Z",
     "videoTracks": [
-        {
-            "id": "track-video-001",
-            "name": "Video Track 1",
-            "enabled": true,
-            "locked": false,
-            "opacity": 1.0
-        }
+        {"id": "track-video-001", "name": "Video Track 1", "enabled": true, "locked": false, "opacity": 1.0}
     ],
     "audioTracks": [
-        {
-            "id": "track-audio-001",
-            "name": "Audio Track 1",
-            "enabled": true,
-            "locked": false,
-            "volume": 1.0
-        }
+        {"id": "track-audio-001", "name": "Audio Track 1", "enabled": true, "locked": false, "volume": 1.0}
     ],
     "clips": [],
     "assets": [],
@@ -696,23 +742,14 @@ std::string ProjectFixtures::createFullValidProject() {
     "transitions": [],
     "subtitles": [],
     "markers": [],
-    "settings": {
-        "width": 1920,
-        "height": 1080,
-        "fps": 30,
-        "duration": 60000
-    },
-    "metadata": {
-        "author": "CCOS Test Suite",
-        "version": "1.0"
-    }
+    "settings": {"width": 1920, "height": 1080, "fps": 30, "duration": 60000},
+    "metadata": {"author": "CCOS Test Suite", "version": "1.0"},
+    "keyframes": []
 })";
 }
 
 std::string ProjectFixtures::createLegacyProject(ProjectSchemaVersion version) {
-    auto& schemaMgr = ProjectSchemaManager::instance();
-    std::string versionStr = schemaMgr.versionToString(version);
-    
+    const auto versionStr = ProjectSchemaManager::instance().versionToString(version);
     return R"({
     "schemaVersion": ")" + versionStr + R"(",
     "id": "project-legacy-001",
@@ -729,7 +766,6 @@ std::string ProjectFixtures::createCorruptedProject(const std::string& corruptio
         return R"({
     "schemaVersion": "1.4.0",
     "id": "corrupted-001"
-    // Missing closing brace
 )";
     }
     if (corruptionType == "missing_bracket") {
@@ -738,16 +774,10 @@ std::string ProjectFixtures::createCorruptedProject(const std::string& corruptio
     "id": "corrupted-002",
     "clips": [
         {"id": "clip-1"}
-    // Missing closing bracket
 })";
     }
-    if (corruptionType == "empty") {
-        return "";
-    }
-    if (corruptionType == "invalid_json") {
-        return "{ invalid json content }";
-    }
-    
+    if (corruptionType == "empty") return {};
+    if (corruptionType == "invalid_json") return "{ invalid json content }";
     return createMinimalValidProject();
 }
 
@@ -762,36 +792,37 @@ std::string ProjectFixtures::createProjectWithUnknownFields() {
     "unknownField3": {"nested": "object"},
     "videoTracks": [],
     "clips": [],
-    "assets": []
+    "assets": [],
+    "keyframes": []
 })";
 }
 
 std::string ProjectFixtures::createLargeProject(int clipCount) {
     std::ostringstream oss;
-    oss << R"({
-    "schemaVersion": "1.4.0",
-    "id": "project-large-001",
-    "name": "Large Project",
-    "createdAt": "2024-01-01T00:00:00Z",
-    "videoTracks": [{"id": "track-1", "name": "Track 1"}],
-    "audioTracks": [],
-    "clips": [";
-    
-    for (int i = 0; i < clipCount; ++i) {
-        if (i > 0) oss << ",";
-        oss << R"({"id": "clip-)" << i << R"(", "name": "Clip )" << i << R"("})";
+    oss << "{\n"
+        << "    \"schemaVersion\": \"1.4.0\",\n"
+        << "    \"id\": \"project-large-001\",\n"
+        << "    \"name\": \"Large Project\",\n"
+        << "    \"createdAt\": \"2024-01-01T00:00:00Z\",\n"
+        << "    \"videoTracks\": [{\"id\": \"track-1\", \"name\": \"Track 1\"}],\n"
+        << "    \"audioTracks\": [],\n"
+        << "    \"clips\": [\n";
+
+    for (int i = 0; i < std::max(0, clipCount); ++i) {
+        if (i > 0) oss << ",\n";
+        oss << "        {\"id\": \"clip-" << i << "\", \"name\": \"Clip " << i << "\"}";
     }
-    
-    oss << R"(],
-    "assets": [],
-    "effects": [],
-    "transitions": [],
-    "subtitles": [],
-    "markers": [],
-    "settings": {},
-    "metadata": {}
-})";
-    
+
+    oss << "\n    ],\n"
+        << "    \"assets\": [],\n"
+        << "    \"effects\": [],\n"
+        << "    \"transitions\": [],\n"
+        << "    \"subtitles\": [],\n"
+        << "    \"markers\": [],\n"
+        << "    \"settings\": {},\n"
+        << "    \"metadata\": {},\n"
+        << "    \"keyframes\": []\n"
+        << "}";
     return oss.str();
 }
 
