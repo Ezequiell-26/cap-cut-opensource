@@ -1,0 +1,57 @@
+name: Security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: '17 3 * * 1'
+
+permissions:
+  contents: read
+  security-events: write
+
+concurrency:
+  group: ccos-security-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  codeql:
+    timeout-minutes: 60
+    name: CodeQL C++
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: cpp
+          build-mode: manual
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build build-essential
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.3'
+          host: linux
+          target: desktop
+          arch: linux_gcc_64
+          modules: 'qtmultimedia;qtsvg'
+          cache: true
+      - name: Build for analysis
+        run: |
+          cmake -S . -B build-codeql -G Ninja -DCCOS_BUILD_TESTS=OFF -DCCOS_BUILD_CLI=ON -DCMAKE_BUILD_TYPE=Release
+          cmake --build build-codeql --parallel
+      - uses: github/codeql-action/analyze@v3
+
+  repository-security:
+    timeout-minutes: 15
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Native C++ repository guard
+        run: |
+          cmake -S tools/ccos_guard -B build-guard -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build build-guard --parallel
+          ctest --test-dir build-guard --output-on-failure
