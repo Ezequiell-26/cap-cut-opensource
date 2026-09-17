@@ -58,6 +58,7 @@ set(CCOS_SOURCES
     src/project/Project.cpp
     src/project/ProjectSerializer.cpp
     src/project/ProjectSchema.cpp
+    src/project/ProjectRecovery.cpp
     src/media/MediaAsset.cpp
     src/media/MediaImporter.cpp
     src/media/MediaProbe.cpp
@@ -195,6 +196,7 @@ if(CCOS_BUILD_TESTS)
         tests/project/ProjectTests.cpp
         tests/project/ProjectIdentityPersistenceTests.cpp
         tests/project/ProjectClipPropertiesTests.cpp
+        tests/project/ProjectRecoveryTests.cpp
         tests/unit/project/ProjectSchemaTest.cpp
         tests/timeline/TimelineTests.cpp
         tests/timeline/TimelineEditorTests.cpp
