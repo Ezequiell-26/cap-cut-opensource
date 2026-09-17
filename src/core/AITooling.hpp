@@ -2,14 +2,20 @@
 
 #include <QObject>
 #include <QString>
+#include <QStringList>
 #include <QVariantMap>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QUuid>
+#include <QMap>
+#include <QSet>
+#include <QMutex>
+
 #include <functional>
+#include <limits>
 #include <memory>
-#include <vector>
 #include <optional>
+#include <vector>
 
 namespace ccos::core {
 
@@ -230,7 +236,7 @@ public:
      */
     bool isToolEnabled(const QString &toolName) const;
 
-signals:
+Q_SIGNALS:
     void toolExecuted(const QString &toolName, const ToolResult &result);
     void toolValidationFailed(const QString &toolName, const QStringList &errors);
     void permissionDenied(const QString &toolName, const QString &missingPermission);
