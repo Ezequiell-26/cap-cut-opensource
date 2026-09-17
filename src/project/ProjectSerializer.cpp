@@ -1,8 +1,8 @@
 #include "project/ProjectSerializer.hpp"
-#include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QSaveFile>
 
 namespace ccos::project {
 
@@ -22,21 +22,24 @@ bool ProjectSerializer::save(const Project& project, const QString& path, QStrin
         item[QStringLiteral("width")] = asset.metadata().width;
         item[QStringLiteral("height")] = asset.metadata().height;
         item[QStringLiteral("fps")] = asset.metadata().fps;
+        item[QStringLiteral("videoCodec")] = asset.metadata().videoCodec;
+        item[QStringLiteral("audioCodec")] = asset.metadata().audioCodec;
+        item[QStringLiteral("audioChannels")] = asset.metadata().audioChannels;
+        item[QStringLiteral("sampleRate")] = asset.metadata().sampleRate;
         assets.append(item);
     }
     root[QStringLiteral("assets")] = assets;
 
-    QFile file(path);
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+    QSaveFile file(path);
+    if (!file.open(QIODevice::WriteOnly)) {
         if (error) *error = file.errorString();
         return false;
     }
     const auto bytes = QJsonDocument(root).toJson(QJsonDocument::Indented);
-    if (file.write(bytes) != bytes.size()) {
+    if (file.write(bytes) != bytes.size() || !file.commit()) {
         if (error) *error = file.errorString();
         return false;
     }
-    file.flush();
     return true;
 }
 
@@ -66,6 +69,10 @@ bool ProjectSerializer::load(Project& project, const QString& path, QString* err
         metadata.width = obj.value(QStringLiteral("width")).toInt();
         metadata.height = obj.value(QStringLiteral("height")).toInt();
         metadata.fps = obj.value(QStringLiteral("fps")).toDouble();
+        metadata.videoCodec = obj.value(QStringLiteral("videoCodec")).toString();
+        metadata.audioCodec = obj.value(QStringLiteral("audioCodec")).toString();
+        metadata.audioChannels = obj.value(QStringLiteral("audioChannels")).toInt();
+        metadata.sampleRate = obj.value(QStringLiteral("sampleRate")).toInt();
         project.addAsset(std::move(asset));
     }
     return true;
