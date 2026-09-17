@@ -2,6 +2,7 @@
 #include "core/Uuid.hpp"
 #include <QString>
 #include <cstdint>
+#include <utility>
 
 namespace ccos::media {
 struct MediaMetadata {
