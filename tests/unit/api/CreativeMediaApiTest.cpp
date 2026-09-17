@@ -6,6 +6,7 @@ TEST(CreativeMediaApiTest, ExposesOpenMediaProviders) {
     const auto providers = ccos::api::CreativeMediaApi::supportedProviders();
     EXPECT_TRUE(providers.contains(QStringLiteral("openverse")));
     EXPECT_TRUE(providers.contains(QStringLiteral("wikimedia_commons")));
+    EXPECT_TRUE(providers.contains(QStringLiteral("freesound")));
 }
 
 TEST(CreativeMediaApiTest, KindNamesAreStable) {
