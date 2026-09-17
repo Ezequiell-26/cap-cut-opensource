@@ -17,7 +17,7 @@ QJsonObject EditorApi::inspect(const ccos::project::Project& project) {
         item.insert(QStringLiteral("id"), QString::fromStdString(asset.id().toString()));
         item.insert(QStringLiteral("name"), asset.name());
         item.insert(QStringLiteral("path"), asset.path());
-        item.insert(QStringLiteral("durationMs"), asset.metadata().durationMs);
+        item.insert(QStringLiteral("durationMs"), QJsonValue(static_cast<qint64>(asset.metadata().durationMs)));
         item.insert(QStringLiteral("width"), asset.metadata().width);
         item.insert(QStringLiteral("height"), asset.metadata().height);
         assets.append(item);
