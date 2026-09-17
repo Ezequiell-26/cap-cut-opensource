@@ -1,6 +1,8 @@
 #pragma once
 
+#include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <cstdint>
 #include <limits>
 #include <map>
@@ -83,7 +85,8 @@ struct RationalTime {
     }
 
     bool operator==(const RationalTime& other) const {
-        return seconds() == other.seconds();
+        return static_cast<long double>(numerator) * static_cast<long double>(other.denominator) ==
+               static_cast<long double>(other.numerator) * static_cast<long double>(denominator);
     }
 };
 
