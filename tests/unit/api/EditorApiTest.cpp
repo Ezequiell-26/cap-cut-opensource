@@ -134,3 +134,29 @@ TEST(EditorApiTest, RejectsIntegerIndexOverflowWithoutUndefinedCast) {
     EXPECT_FALSE(result.value(QStringLiteral("ok")).toBool());
     EXPECT_NE(result.value(QStringLiteral("error")).toString().indexOf(QStringLiteral("trackIndex")), -1);
 }
+
+TEST(EditorApiTest, ValidationRejectsInvalidClipTransform) {
+    auto project = makeProject();
+    ccos::media::MediaAsset asset(QStringLiteral("demo.mp4"));
+    asset.metadata().durationMs = 10000;
+    project.addAsset(asset);
+
+    auto& track = project.timeline().ensureVideoTrack();
+    auto clip = ccos::timeline::Clip(project.assets().front());
+    clip.setDuration(ccos::core::Time::fromSeconds(2.0));
+    clip.transform().opacity = 1.5;
+    track.addClip(clip);
+
+    const QJsonObject result = ccos::api::EditorApi::validate(project);
+    EXPECT_FALSE(result.value(QStringLiteral("ok")).toBool());
+
+    const auto errors = result.value(QStringLiteral("errors")).toArray();
+    bool foundOpacityError = false;
+    for (const auto& error : errors) {
+        if (error.toString().contains(QStringLiteral("opacity outside"))) {
+            foundOpacityError = true;
+            break;
+        }
+    }
+    EXPECT_TRUE(foundOpacityError);
+}
