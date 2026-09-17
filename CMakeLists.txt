@@ -66,6 +66,7 @@ set(CCOS_SOURCES
     src/media/ProxyManager.cpp
     src/media/MediaDerivatives.cpp
     src/media/ThumbnailGenerator.cpp
+    src/media/WaveformGenerator.cpp
     src/timeline/Clip.cpp
     src/timeline/Track.cpp
     src/timeline/Timeline.cpp
@@ -205,6 +206,7 @@ if(CCOS_BUILD_TESTS)
         tests/media/MediaImporterTests.cpp
         tests/media/MediaProbeTests.cpp
         tests/media/ThumbnailGeneratorTests.cpp
+        tests/media/WaveformGeneratorTests.cpp
         tests/effects/BuiltinEffectsTests.cpp
         tests/text/SubtitleParserTests.cpp
         tests/unit/core/JobSystemSmokeTest.cpp
