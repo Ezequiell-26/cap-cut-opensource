@@ -13,6 +13,12 @@ struct TransformState {
     double scaleY = 1.0;
     double rotation = 0.0;
     double opacity = 1.0;
+    double cropLeft = 0.0;
+    double cropTop = 0.0;
+    double cropRight = 0.0;
+    double cropBottom = 0.0;
+    bool flipHorizontal = false;
+    bool flipVertical = false;
 };
 
 class Clip {
