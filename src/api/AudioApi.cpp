@@ -10,6 +10,8 @@
 #include <QUrlQuery>
 #include <QDebug>
 
+#include <algorithm>
+
 namespace ccos::api {
 namespace {
 constexpr int kApiTimeoutMs = 20'000;
@@ -152,12 +154,13 @@ QVector<AudioTrackResult> AudioApi::searchMusic(const QString& query, const QStr
     }
 
     QNetworkAccessManager manager;
+    const int safeLimit = std::clamp(limit, 1, 100);
     QUrl url(QStringLiteral("https://api.jamendo.com/rest/3.0/tracks/"));
     QUrlQuery queryBuilder;
     queryBuilder.addQueryItem(QStringLiteral("client_id"), jamendoclientId_);
     queryBuilder.addQueryItem(QStringLiteral("format"), QStringLiteral("json"));
-    queryBuilder.addQueryItem(QStringLiteral("limit"), QString::number(std::clamp(limit, 1, 100)));
-    queryBuilder.addQueryItem(QStringLiteral("offset"), QString::number(std::max(0, page - 1) * std::clamp(limit, 1, 100)));
+    queryBuilder.addQueryItem(QStringLiteral("limit"), QString::number(safeLimit));
+    queryBuilder.addQueryItem(QStringLiteral("offset"), QString::number(std::max(0, page - 1) * safeLimit));
     if (!query.trimmed().isEmpty()) queryBuilder.addQueryItem(QStringLiteral("search"), query.trimmed());
     if (!genre.trimmed().isEmpty()) queryBuilder.addQueryItem(QStringLiteral("musicgroup"), genre.trimmed());
     queryBuilder.addQueryItem(QStringLiteral("include"), QStringLiteral("musicinfo"));
