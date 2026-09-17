@@ -11,11 +11,12 @@
 #include <utility>
 
 namespace ccos::api {
-namespace {
 
-struct ServerHolder {
+struct LocalAutomationApi::ServerHolder {
     httplib::Server server;
 };
+
+namespace {
 
 QByteArray jsonResponse(const QJsonObject& object) {
     return QJsonDocument(object).toJson(QJsonDocument::Compact);
@@ -46,6 +47,12 @@ bool authorized(const httplib::Request& request, const QString& token) {
     return request.get_header_value("Authorization") == expected;
 }
 
+void unauthorized(httplib::Response& response) {
+    response.status = 401;
+    response.set_header("WWW-Authenticate", "Bearer");
+    response.set_content("{\"error\":\"unauthorized\"}", "application/json");
+}
+
 } // namespace
 
 LocalAutomationApi::LocalAutomationApi(ccos::core::JobSystem* jobSystem,
@@ -62,26 +69,27 @@ LocalAutomationApi::~LocalAutomationApi() {
 }
 
 bool LocalAutomationApi::start() {
-    if (running_.exchange(true, std::memory_order_acq_rel)) return false;
+    bool expected = false;
+    if (!running_.compare_exchange_strong(expected, true, std::memory_order_acq_rel)) return false;
 
     stopRequested_.store(false, std::memory_order_release);
-    server_ = std::make_unique<class httplibServerHolder>();
-    auto* holder = reinterpret_cast<ServerHolder*>(server_.get());
+    server_ = std::make_unique<ServerHolder>();
+    auto* holder = server_.get();
 
-    // Only bind loopback. There is deliberately no 0.0.0.0/public listener.
+    holder->server.set_keep_alive_max_count(100);
+
     holder->server.Get("/api/v1/health", [this](const httplib::Request& request, httplib::Response& response) {
         if (!authorized(request, bearerToken_)) {
-            response.status = 401;
-            response.set_content("{\"error\":\"unauthorized\"}", "application/json");
+            unauthorized(response);
             return;
         }
-        response.set_content("{\"status\":\"ok\",\"service\":\"ccos-local-automation\"}", "application/json");
+        response.set_content("{\"status\":\"ok\",\"service\":\"ccos-local-automation\",\"version\":1}",
+                             "application/json");
     });
 
     holder->server.Get("/api/v1/jobs", [this](const httplib::Request& request, httplib::Response& response) {
         if (!authorized(request, bearerToken_)) {
-            response.status = 401;
-            response.set_content("{\"error\":\"unauthorized\"}", "application/json");
+            unauthorized(response);
             return;
         }
 
@@ -95,8 +103,7 @@ bool LocalAutomationApi::start() {
 
     holder->server.Get(R"(/api/v1/jobs/([^/]+))", [this](const httplib::Request& request, httplib::Response& response) {
         if (!authorized(request, bearerToken_)) {
-            response.status = 401;
-            response.set_content("{\"error\":\"unauthorized\"}", "application/json");
+            unauthorized(response);
             return;
         }
         if (!jobSystem_) {
@@ -117,8 +124,7 @@ bool LocalAutomationApi::start() {
 
     holder->server.Post(R"(/api/v1/jobs/([^/]+)/cancel)", [this](const httplib::Request& request, httplib::Response& response) {
         if (!authorized(request, bearerToken_)) {
-            response.status = 401;
-            response.set_content("{\"error\":\"unauthorized\"}", "application/json");
+            unauthorized(response);
             return;
         }
         if (!jobSystem_) {
@@ -136,15 +142,6 @@ bool LocalAutomationApi::start() {
         }).toStdString(), "application/json");
     });
 
-    holder->server.set_pre_routing_handler([this](const httplib::Request& request, httplib::Response& response) {
-        if (!request.path.starts_with("/api/v1/")) {
-            response.status = 404;
-            return httplib::Server::HandlerResponse::Handled;
-        }
-        response.set_header("Cache-Control", "no-store");
-        return httplib::Server::HandlerResponse::Unhandled;
-    });
-
     serverThread_ = std::thread(&LocalAutomationApi::runServer, this);
     return true;
 }
@@ -152,33 +149,37 @@ bool LocalAutomationApi::start() {
 void LocalAutomationApi::stop() {
     stopRequested_.store(true, std::memory_order_release);
 
-    if (server_) {
-        auto* holder = reinterpret_cast<ServerHolder*>(server_.get());
-        holder->server.stop();
-    }
-
+    if (server_) server_->server.stop();
     if (serverThread_.joinable()) serverThread_.join();
     server_.reset();
 
-    if (running_.exchange(false, std::memory_order_acq_rel)) {
-        emit stopped();
-    }
+    if (running_.exchange(false, std::memory_order_acq_rel)) emit stopped();
 }
 
 void LocalAutomationApi::runServer() {
-    auto* holder = reinterpret_cast<ServerHolder*>(server_.get());
-    const bool bound = holder->server.set_keep_alive_max_count(100).listen("127.0.0.1", static_cast<int>(port_));
-    if (!bound && !stopRequested_.load(std::memory_order_acquire)) {
+    auto* holder = server_.get();
+    if (holder == nullptr) {
         running_.store(false, std::memory_order_release);
-        QMetaObject::invokeMethod(this, [this]() {
-            emit errorOccurred(QStringLiteral("Could not bind local automation API on 127.0.0.1:%1").arg(port_));
-        }, Qt::QueuedConnection);
+        return;
+    }
+
+    const int socket = holder->server.bind_to_port("127.0.0.1", static_cast<int>(port_));
+    if (socket < 0) {
+        running_.store(false, std::memory_order_release);
+        if (!stopRequested_.load(std::memory_order_acquire)) {
+            QMetaObject::invokeMethod(this, [this]() {
+                emit errorOccurred(QStringLiteral("Could not bind local automation API on 127.0.0.1:%1")
+                                       .arg(port_));
+            }, Qt::QueuedConnection);
+        }
         return;
     }
 
     if (!stopRequested_.load(std::memory_order_acquire)) {
         QMetaObject::invokeMethod(this, [this]() { emit started(port_); }, Qt::QueuedConnection);
     }
+
+    holder->server.listen_after_bind();
 }
 
 } // namespace ccos::api
