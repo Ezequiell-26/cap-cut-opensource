@@ -62,11 +62,11 @@ public:
 
     // Text-to-Speech (TTS)
     void listAvailableVoices(const QString& languageCode = "",
-                             std::function<void(const QVector<VoiceProfile>&)> callback);
+                             std::function<void(const QVector<VoiceProfile>&)> callback = {});
     
     void textToSpeech(const QString& text, const VoiceProfile& voice,
                       float speed = 1.0f, float pitch = 0.0f, float volume = 0.0f,
-                      std::function<void(const QByteArray& audioData)> callback);
+                      std::function<void(const QByteArray& audioData)> callback = {});
     
     void textToSpeechWithSSML(const QString& ssml, const VoiceProfile& voice,
                               std::function<void(const QByteArray& audioData)> callback);
@@ -75,15 +75,15 @@ public:
     void speechToText(const QByteArray& audioData, const QString& languageCode = "en-US",
                       bool enableSpeakerDiarization = false,
                       bool enableProfanityFilter = false,
-                      std::function<void(const TranscriptionResult&)> callback);
+                      std::function<void(const TranscriptionResult&)> callback = {});
     
     void speechToTextAsync(const QString& audioFilePath, const QString& languageCode = "en-US",
-                           std::function<void(const TranscriptionResult&)> callback);
+                           std::function<void(const TranscriptionResult&)> callback = {});
 
     // Generación de subtítulos accesibles
     void generateSubtitles(const TranscriptionResult& transcription,
                            const QString& format = "webvtt", // "webvtt", "srt", "ttml"
-                           std::function<void(const QString&)> callback);
+                           std::function<void(const QString&)> callback = {});
     
     void translateSubtitles(const QString& subtitleText, const QString& sourceLang,
                             const QString& targetLang,
@@ -102,7 +102,7 @@ public:
     static QString simplifyTextForDyslexia(const QString& text);
     static QString addAudioDescriptionMarkers(const QString& script);
 
-signals:
+Q_SIGNALS:
     void voicesReady(const QVector<VoiceProfile>&);
     void ttsComplete(const QByteArray& audioData);
     void sttComplete(const TranscriptionResult&);
