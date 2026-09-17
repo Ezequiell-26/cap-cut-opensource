@@ -1,5 +1,6 @@
 #include "core/ProcessRunner.hpp"
 
+#include <QDir>
 #include <QElapsedTimer>
 #include <QFileInfo>
 #include <QLoggingCategory>
