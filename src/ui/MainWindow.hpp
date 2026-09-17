@@ -9,6 +9,8 @@ class QLabel;
 class QSlider;
 class QMediaPlayer;
 class QAudioOutput;
+class QTimer;
+class QCloseEvent;
 
 namespace ccos::ui {
 class MainWindow final : public QMainWindow {
@@ -26,6 +28,10 @@ private Q_SLOTS:
     void togglePlayback();
     void undo();
     void redo();
+    void autosave();
+
+protected:
+    void closeEvent(QCloseEvent* event) override;
 
 private:
     void buildUi();
@@ -34,6 +40,7 @@ private:
     void refreshTimeline();
     QString projectDialogPath(bool save) const;
     void loadPreviewSource(const QString& path);
+    QString recoveryPath() const;
 
     ccos::project::Project project_;
     ccos::core::CommandStack commandStack_;
@@ -45,5 +52,6 @@ private:
     QSlider* timelineSlider_ = nullptr;
     QMediaPlayer* player_ = nullptr;
     QAudioOutput* audioOutput_ = nullptr;
+    QTimer* autosaveTimer_ = nullptr;
 };
 }
