@@ -22,6 +22,7 @@ find_package(Qt6 6.5 REQUIRED COMPONENTS Widgets)
 add_library(ccos_core
     src/core/Time.cpp
     src/core/Uuid.cpp
+    src/core/CommandStack.cpp
     src/project/Project.cpp
     src/project/ProjectSerializer.cpp
     src/media/MediaAsset.cpp
