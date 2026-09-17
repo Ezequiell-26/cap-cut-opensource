@@ -36,7 +36,7 @@ public:
     [[nodiscard]] bool isRunning() const noexcept { return running_.load(std::memory_order_acquire); }
     [[nodiscard]] quint16 port() const noexcept { return port_; }
 
-signals:
+Q_SIGNALS:
     void started(quint16 port);
     void stopped();
     void errorOccurred(const QString& message);
