@@ -1,4 +1,5 @@
 #include "api/EditorApi.hpp"
+#include "render/HardwareCapabilities.hpp"
 #include "render/TimelineExporter.hpp"
 #include <QFileInfo>
 #include <QJsonArray>
@@ -43,10 +44,31 @@ QJsonObject EditorApi::validate(const ccos::project::Project& project) {
     return out;
 }
 
+QJsonObject EditorApi::hardwareCapabilities(const QString& ffmpegExecutable) {
+    const auto capabilities = ccos::render::HardwareCapabilitiesProbe::detect(ffmpegExecutable);
+    QJsonArray encoders;
+    for (const auto& encoder : capabilities.encoders) encoders.append(encoder);
+
+    return QJsonObject{
+        {QStringLiteral("ok"), true},
+        {QStringLiteral("encoders"), encoders},
+        {QStringLiteral("hasNvidia"), capabilities.hasNvidia},
+        {QStringLiteral("hasIntel"), capabilities.hasIntel},
+        {QStringLiteral("hasAmd"), capabilities.hasAmd},
+        {QStringLiteral("hasVideoToolbox"), capabilities.hasVideoToolbox},
+        {QStringLiteral("hasVaapi"), capabilities.hasVaapi},
+        {QStringLiteral("preferredH264"), capabilities.preferredH264Encoder()},
+        {QStringLiteral("preferredHevc"), capabilities.preferredHevcEncoder()}
+    };
+}
+
 QJsonObject EditorApi::command(ccos::project::Project& project, const QJsonObject& request, const QString& ffmpegExecutable) {
     const QString operation = request.value(QStringLiteral("op")).toString().trimmed().toLower();
     if (operation == QStringLiteral("inspect")) return inspect(project);
     if (operation == QStringLiteral("validate")) return validate(project);
+    if (operation == QStringLiteral("hardware_capabilities") || operation == QStringLiteral("hardware")) {
+        return hardwareCapabilities(ffmpegExecutable);
+    }
     if (operation == QStringLiteral("set_project_name")) {
         const QString name = request.value(QStringLiteral("name")).toString().trimmed();
         if (name.isEmpty()) return QJsonObject{{QStringLiteral("ok"), false}, {QStringLiteral("error"), QStringLiteral("name is required")}};
