@@ -1,85 +1,327 @@
 #include "project/ProjectSerializer.hpp"
+
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QSaveFile>
 
+#include <unordered_set>
+
 namespace ccos::project {
 namespace {
-QJsonObject encodeTime(const ccos::core::Time& time) { return QJsonObject{{QStringLiteral("n"), static_cast<qint64>(time.numerator())}, {QStringLiteral("d"), time.denominator()}}; }
-ccos::core::Time decodeTime(const QJsonObject& object) { return ccos::core::Time(object.value(QStringLiteral("n")).toInteger(), object.value(QStringLiteral("d")).toInt(1)); }
+
+constexpr int kCurrentVersion = 6;
+
+QJsonObject encodeTime(const ccos::core::Time& time) {
+    return QJsonObject{
+        {QStringLiteral("n"), static_cast<qint64>(time.numerator())},
+        {QStringLiteral("d"), time.denominator()}
+    };
+}
+
+ccos::core::Time decodeTime(const QJsonObject& object) {
+    return ccos::core::Time(
+        object.value(QStringLiteral("n")).toInteger(),
+        object.value(QStringLiteral("d")).toInt(1));
+}
+
 QJsonObject encodeTransform(const ccos::timeline::TransformState& t) {
-    return QJsonObject{{QStringLiteral("x"), t.x}, {QStringLiteral("y"), t.y}, {QStringLiteral("scaleX"), t.scaleX}, {QStringLiteral("scaleY"), t.scaleY}, {QStringLiteral("rotation"), t.rotation}, {QStringLiteral("opacity"), t.opacity}, {QStringLiteral("cropLeft"), t.cropLeft}, {QStringLiteral("cropTop"), t.cropTop}, {QStringLiteral("cropRight"), t.cropRight}, {QStringLiteral("cropBottom"), t.cropBottom}, {QStringLiteral("flipHorizontal"), t.flipHorizontal}, {QStringLiteral("flipVertical"), t.flipVertical}};
+    return QJsonObject{
+        {QStringLiteral("x"), t.x},
+        {QStringLiteral("y"), t.y},
+        {QStringLiteral("scaleX"), t.scaleX},
+        {QStringLiteral("scaleY"), t.scaleY},
+        {QStringLiteral("rotation"), t.rotation},
+        {QStringLiteral("opacity"), t.opacity},
+        {QStringLiteral("cropLeft"), t.cropLeft},
+        {QStringLiteral("cropTop"), t.cropTop},
+        {QStringLiteral("cropRight"), t.cropRight},
+        {QStringLiteral("cropBottom"), t.cropBottom},
+        {QStringLiteral("flipHorizontal"), t.flipHorizontal},
+        {QStringLiteral("flipVertical"), t.flipVertical}
+    };
 }
-void decodeTransform(const QJsonObject& o, ccos::timeline::TransformState& t) {
-    t.x = o.value(QStringLiteral("x")).toDouble(t.x); t.y = o.value(QStringLiteral("y")).toDouble(t.y); t.scaleX = o.value(QStringLiteral("scaleX")).toDouble(t.scaleX); t.scaleY = o.value(QStringLiteral("scaleY")).toDouble(t.scaleY); t.rotation = o.value(QStringLiteral("rotation")).toDouble(t.rotation); t.opacity = o.value(QStringLiteral("opacity")).toDouble(t.opacity); t.cropLeft = o.value(QStringLiteral("cropLeft")).toDouble(t.cropLeft); t.cropTop = o.value(QStringLiteral("cropTop")).toDouble(t.cropTop); t.cropRight = o.value(QStringLiteral("cropRight")).toDouble(t.cropRight); t.cropBottom = o.value(QStringLiteral("cropBottom")).toDouble(t.cropBottom); t.flipHorizontal = o.value(QStringLiteral("flipHorizontal")).toBool(t.flipHorizontal); t.flipVertical = o.value(QStringLiteral("flipVertical")).toBool(t.flipVertical);
+
+void decodeTransform(const QJsonObject& object, ccos::timeline::TransformState& transform) {
+    transform.x = object.value(QStringLiteral("x")).toDouble(transform.x);
+    transform.y = object.value(QStringLiteral("y")).toDouble(transform.y);
+    transform.scaleX = object.value(QStringLiteral("scaleX")).toDouble(transform.scaleX);
+    transform.scaleY = object.value(QStringLiteral("scaleY")).toDouble(transform.scaleY);
+    transform.rotation = object.value(QStringLiteral("rotation")).toDouble(transform.rotation);
+    transform.opacity = object.value(QStringLiteral("opacity")).toDouble(transform.opacity);
+    transform.cropLeft = object.value(QStringLiteral("cropLeft")).toDouble(transform.cropLeft);
+    transform.cropTop = object.value(QStringLiteral("cropTop")).toDouble(transform.cropTop);
+    transform.cropRight = object.value(QStringLiteral("cropRight")).toDouble(transform.cropRight);
+    transform.cropBottom = object.value(QStringLiteral("cropBottom")).toDouble(transform.cropBottom);
+    transform.flipHorizontal = object.value(QStringLiteral("flipHorizontal")).toBool(transform.flipHorizontal);
+    transform.flipVertical = object.value(QStringLiteral("flipVertical")).toBool(transform.flipVertical);
 }
+
 QJsonObject encodeText(const ccos::text::TextLayer& layer) {
-    const auto& s = layer.style();
-    return QJsonObject{{QStringLiteral("id"), QString::fromStdString(layer.id().toString())}, {QStringLiteral("text"), layer.text()}, {QStringLiteral("start"), encodeTime(layer.start())}, {QStringLiteral("duration"), encodeTime(layer.duration())}, {QStringLiteral("x"), layer.x()}, {QStringLiteral("y"), layer.y()}, {QStringLiteral("family"), s.family}, {QStringLiteral("size"), s.size}, {QStringLiteral("color"), s.color}, {QStringLiteral("bold"), s.bold}, {QStringLiteral("italic"), s.italic}, {QStringLiteral("opacity"), s.opacity}};
+    const auto& style = layer.style();
+    return QJsonObject{
+        {QStringLiteral("id"), QString::fromStdString(layer.id().toString())},
+        {QStringLiteral("text"), layer.text()},
+        {QStringLiteral("start"), encodeTime(layer.start())},
+        {QStringLiteral("duration"), encodeTime(layer.duration())},
+        {QStringLiteral("x"), layer.x()},
+        {QStringLiteral("y"), layer.y()},
+        {QStringLiteral("family"), style.family},
+        {QStringLiteral("size"), style.size},
+        {QStringLiteral("color"), style.color},
+        {QStringLiteral("bold"), style.bold},
+        {QStringLiteral("italic"), style.italic},
+        {QStringLiteral("opacity"), style.opacity}
+    };
 }
+
+bool parseUuid(const QJsonValue& value, ccos::core::Uuid& id, bool required, QString* error,
+               const QString& fieldName) {
+    const QString text = value.toString().trimmed();
+    if (text.isEmpty()) {
+        if (required) {
+            if (error) *error = QStringLiteral("Missing UUID field: %1").arg(fieldName);
+            return false;
+        }
+        id = ccos::core::Uuid();
+        return true;
+    }
+
+    id = ccos::core::Uuid(text.toStdString());
+    if (id.isNull()) {
+        if (error) *error = QStringLiteral("Invalid UUID in field: %1").arg(fieldName);
+        return false;
+    }
+    return true;
 }
+
+bool addUniqueId(const ccos::core::Uuid& id, std::unordered_set<std::string>& ids,
+                 QString* error, const QString& kind) {
+    const std::string value = id.toString();
+    if (!ids.insert(value).second) {
+        if (error) *error = QStringLiteral("Duplicate %1 UUID: %2")
+            .arg(kind, QString::fromStdString(value));
+        return false;
+    }
+    return true;
+}
+
+} // namespace
 
 bool ProjectSerializer::save(const Project& project, const QString& path, QString* error) {
-    QJsonObject root{{QStringLiteral("format"), QStringLiteral("ccos.project")}, {QStringLiteral("version"), 6}, {QStringLiteral("id"), QString::fromStdString(project.id().toString())}, {QStringLiteral("name"), project.name()}};
+    if (path.isEmpty()) {
+        if (error) *error = QStringLiteral("Project output path is empty");
+        return false;
+    }
+
+    QJsonObject root{
+        {QStringLiteral("format"), QStringLiteral("ccos.project")},
+        {QStringLiteral("version"), kCurrentVersion},
+        {QStringLiteral("id"), QString::fromStdString(project.id().toString())},
+        {QStringLiteral("name"), project.name()}
+    };
+
     QJsonArray assets;
+    std::unordered_set<std::string> assetIds;
     for (const auto& asset : project.assets()) {
-        assets.append(QJsonObject{{QStringLiteral("id"), QString::fromStdString(asset.id().toString())}, {QStringLiteral("path"), asset.path()}, {QStringLiteral("name"), asset.name()}, {QStringLiteral("durationMs"), static_cast<qint64>(asset.metadata().durationMs)}, {QStringLiteral("width"), asset.metadata().width}, {QStringLiteral("height"), asset.metadata().height}, {QStringLiteral("fps"), asset.metadata().fps}, {QStringLiteral("videoCodec"), asset.metadata().videoCodec}, {QStringLiteral("audioCodec"), asset.metadata().audioCodec}, {QStringLiteral("audioChannels"), asset.metadata().audioChannels}, {QStringLiteral("sampleRate"), asset.metadata().sampleRate}});
+        if (!addUniqueId(asset.id(), assetIds, error, QStringLiteral("asset"))) return false;
+        assets.append(QJsonObject{
+            {QStringLiteral("id"), QString::fromStdString(asset.id().toString())},
+            {QStringLiteral("path"), asset.path()},
+            {QStringLiteral("name"), asset.name()},
+            {QStringLiteral("durationMs"), static_cast<qint64>(asset.metadata().durationMs)},
+            {QStringLiteral("width"), asset.metadata().width},
+            {QStringLiteral("height"), asset.metadata().height},
+            {QStringLiteral("fps"), asset.metadata().fps},
+            {QStringLiteral("videoCodec"), asset.metadata().videoCodec},
+            {QStringLiteral("audioCodec"), asset.metadata().audioCodec},
+            {QStringLiteral("audioChannels"), asset.metadata().audioChannels},
+            {QStringLiteral("sampleRate"), asset.metadata().sampleRate}
+        });
     }
     root[QStringLiteral("assets")] = assets;
+
     QJsonArray tracks;
+    std::unordered_set<std::string> clipIds;
     for (const auto& track : project.timeline().tracks()) {
-        QJsonObject trackObject{{QStringLiteral("type"), track.type() == ccos::timeline::TrackType::Video ? QStringLiteral("video") : QStringLiteral("audio")}, {QStringLiteral("name"), track.name()}};
+        QJsonObject trackObject{
+            {QStringLiteral("type"), track.type() == ccos::timeline::TrackType::Video ? QStringLiteral("video") : QStringLiteral("audio")},
+            {QStringLiteral("name"), track.name()}
+        };
         QJsonArray clips;
         for (const auto& clip : track.clips()) {
-            QJsonArray effects; for (const auto& effect : clip.effects()) effects.append(effect);
-            clips.append(QJsonObject{{QStringLiteral("id"), QString::fromStdString(clip.id().toString())}, {QStringLiteral("assetId"), QString::fromStdString(clip.assetId().toString())}, {QStringLiteral("start"), encodeTime(clip.start())}, {QStringLiteral("sourceIn"), encodeTime(clip.sourceIn())}, {QStringLiteral("sourceOut"), encodeTime(clip.sourceOut())}, {QStringLiteral("speed"), clip.speed()}, {QStringLiteral("transform"), encodeTransform(clip.transform())}, {QStringLiteral("effects"), effects}, {QStringLiteral("transitionInId"), clip.transitionInId()}, {QStringLiteral("transitionInDurationMs"), clip.transitionInDurationMs()}});
+            if (!addUniqueId(clip.id(), clipIds, error, QStringLiteral("clip"))) return false;
+            QJsonArray effects;
+            for (const auto& effect : clip.effects()) effects.append(effect);
+            clips.append(QJsonObject{
+                {QStringLiteral("id"), QString::fromStdString(clip.id().toString())},
+                {QStringLiteral("assetId"), QString::fromStdString(clip.assetId().toString())},
+                {QStringLiteral("start"), encodeTime(clip.start())},
+                {QStringLiteral("sourceIn"), encodeTime(clip.sourceIn())},
+                {QStringLiteral("sourceOut"), encodeTime(clip.sourceOut())},
+                {QStringLiteral("speed"), clip.speed()},
+                {QStringLiteral("transform"), encodeTransform(clip.transform())},
+                {QStringLiteral("effects"), effects},
+                {QStringLiteral("transitionInId"), clip.transitionInId()},
+                {QStringLiteral("transitionInDurationMs"), clip.transitionInDurationMs()}
+            });
         }
-        trackObject[QStringLiteral("clips")] = clips; tracks.append(trackObject);
+        trackObject[QStringLiteral("clips")] = clips;
+        tracks.append(trackObject);
     }
     root[QStringLiteral("timeline")] = tracks;
-    QJsonArray texts; for (const auto& layer : project.textLayers()) texts.append(encodeText(layer)); root[QStringLiteral("textLayers")] = texts;
+
+    QJsonArray texts;
+    std::unordered_set<std::string> textIds;
+    for (const auto& layer : project.textLayers()) {
+        if (!addUniqueId(layer.id(), textIds, error, QStringLiteral("text-layer"))) return false;
+        texts.append(encodeText(layer));
+    }
+    root[QStringLiteral("textLayers")] = texts;
 
     QSaveFile file(path);
-    if (!file.open(QIODevice::WriteOnly)) { if (error) *error = file.errorString(); return false; }
+    if (!file.open(QIODevice::WriteOnly)) {
+        if (error) *error = file.errorString();
+        return false;
+    }
+
     const QByteArray bytes = QJsonDocument(root).toJson(QJsonDocument::Indented);
-    if (file.write(bytes) != bytes.size() || !file.commit()) { if (error) *error = file.errorString(); return false; }
+    if (file.write(bytes) != bytes.size() || !file.commit()) {
+        if (error) *error = file.errorString();
+        return false;
+    }
     return true;
 }
 
 bool ProjectSerializer::load(Project& project, const QString& path, QString* error) {
-    QFile file(path); if (!file.open(QIODevice::ReadOnly)) { if (error) *error = file.errorString(); return false; }
-    QJsonParseError parseError{}; const auto doc = QJsonDocument::fromJson(file.readAll(), &parseError);
-    if (parseError.error != QJsonParseError::NoError || !doc.isObject()) { if (error) *error = parseError.errorString(); return false; }
-    const auto root = doc.object(); if (root.value(QStringLiteral("format")).toString() != QStringLiteral("ccos.project")) { if (error) *error = QStringLiteral("Unsupported project format"); return false; }
-    const int version = root.value(QStringLiteral("version")).toInt(1); if (version < 1 || version > 6) { if (error) *error = QStringLiteral("Unsupported project version: %1").arg(version); return false; }
-    project = Project(root.value(QStringLiteral("name")).toString(QStringLiteral("Untitled Project")));
-    for (const auto& value : root.value(QStringLiteral("assets")).toArray()) {
-        const auto obj = value.toObject(); ccos::media::MediaAsset asset(ccos::core::Uuid(obj.value(QStringLiteral("id")).toString().toStdString()), obj.value(QStringLiteral("path")).toString());
-        auto& metadata = asset.metadata(); metadata.durationMs = obj.value(QStringLiteral("durationMs")).toInteger(); metadata.width = obj.value(QStringLiteral("width")).toInt(); metadata.height = obj.value(QStringLiteral("height")).toInt(); metadata.fps = obj.value(QStringLiteral("fps")).toDouble(); metadata.videoCodec = obj.value(QStringLiteral("videoCodec")).toString(); metadata.audioCodec = obj.value(QStringLiteral("audioCodec")).toString(); metadata.audioChannels = obj.value(QStringLiteral("audioChannels")).toInt(); metadata.sampleRate = obj.value(QStringLiteral("sampleRate")).toInt(); project.addAsset(std::move(asset));
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)) {
+        if (error) *error = file.errorString();
+        return false;
     }
+
+    QJsonParseError parseError{};
+    const QByteArray bytes = file.readAll();
+    const auto document = QJsonDocument::fromJson(bytes, &parseError);
+    if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
+        if (error) *error = parseError.errorString();
+        return false;
+    }
+
+    const auto root = document.object();
+    if (root.value(QStringLiteral("format")).toString() != QStringLiteral("ccos.project")) {
+        if (error) *error = QStringLiteral("Unsupported project format");
+        return false;
+    }
+
+    const int version = root.value(QStringLiteral("version")).toInt(1);
+    if (version < 1 || version > kCurrentVersion) {
+        if (error) *error = QStringLiteral("Unsupported project version: %1").arg(version);
+        return false;
+    }
+
+    ccos::core::Uuid projectId;
+    if (!parseUuid(root.value(QStringLiteral("id")), projectId, version >= 6, error, QStringLiteral("project.id"))) return false;
+    Project loaded(projectId, root.value(QStringLiteral("name")).toString(QStringLiteral("Untitled Project")));
+
+    std::unordered_set<std::string> assetIds;
+    for (const auto& value : root.value(QStringLiteral("assets")).toArray()) {
+        const auto object = value.toObject();
+        ccos::core::Uuid assetId;
+        if (!parseUuid(object.value(QStringLiteral("id")), assetId, version >= 6, error, QStringLiteral("asset.id"))) return false;
+        if (!addUniqueId(assetId, assetIds, error, QStringLiteral("asset"))) return false;
+
+        ccos::media::MediaAsset asset(assetId, object.value(QStringLiteral("path")).toString());
+        auto& metadata = asset.metadata();
+        metadata.durationMs = object.value(QStringLiteral("durationMs")).toInteger();
+        metadata.width = object.value(QStringLiteral("width")).toInt();
+        metadata.height = object.value(QStringLiteral("height")).toInt();
+        metadata.fps = object.value(QStringLiteral("fps")).toDouble();
+        metadata.videoCodec = object.value(QStringLiteral("videoCodec")).toString();
+        metadata.audioCodec = object.value(QStringLiteral("audioCodec")).toString();
+        metadata.audioChannels = object.value(QStringLiteral("audioChannels")).toInt();
+        metadata.sampleRate = object.value(QStringLiteral("sampleRate")).toInt();
+        asset.setName(object.value(QStringLiteral("name")).toString());
+        loaded.addAsset(std::move(asset));
+    }
+
+    std::unordered_set<std::string> clipIds;
     if (version >= 2 && root.contains(QStringLiteral("timeline"))) {
-        auto& tracks = project.timeline().tracks(); tracks.clear();
+        auto& tracks = loaded.timeline().tracks();
+        tracks.clear();
         for (const auto& value : root.value(QStringLiteral("timeline")).toArray()) {
-            const auto object = value.toObject(); const auto type = object.value(QStringLiteral("type")).toString() == QStringLiteral("audio") ? ccos::timeline::TrackType::Audio : ccos::timeline::TrackType::Video; ccos::timeline::Track track(type, object.value(QStringLiteral("name")).toString());
+            const auto object = value.toObject();
+            const auto type = object.value(QStringLiteral("type")).toString() == QStringLiteral("audio")
+                ? ccos::timeline::TrackType::Audio : ccos::timeline::TrackType::Video;
+            ccos::timeline::Track track(type, object.value(QStringLiteral("name")).toString());
+
             for (const auto& clipValue : object.value(QStringLiteral("clips")).toArray()) {
-                const auto clipObject = clipValue.toObject(); ccos::timeline::Clip clip(ccos::core::Uuid(clipObject.value(QStringLiteral("id")).toString().toStdString()), ccos::core::Uuid(clipObject.value(QStringLiteral("assetId")).toString().toStdString()));
-                clip.setStart(decodeTime(clipObject.value(QStringLiteral("start")).toObject())); clip.setSourceRange(decodeTime(clipObject.value(QStringLiteral("sourceIn")).toObject()), decodeTime(clipObject.value(QStringLiteral("sourceOut")).toObject()));
-                if (version >= 3) { clip.setSpeed(clipObject.value(QStringLiteral("speed")).toDouble(1.0)); decodeTransform(clipObject.value(QStringLiteral("transform")).toObject(), clip.transform()); for (const auto& effect : clipObject.value(QStringLiteral("effects")).toArray()) clip.addEffect(effect.toString()); }
-                if (version >= 6) clip.setTransitionIn(clipObject.value(QStringLiteral("transitionInId")).toString(QStringLiteral("cut")), clipObject.value(QStringLiteral("transitionInDurationMs")).toInteger(0));
+                const auto clipObject = clipValue.toObject();
+                ccos::core::Uuid clipId;
+                if (!parseUuid(clipObject.value(QStringLiteral("id")), clipId, version >= 6, error, QStringLiteral("clip.id"))) return false;
+                if (!addUniqueId(clipId, clipIds, error, QStringLiteral("clip"))) return false;
+
+                const ccos::core::Uuid assetId(clipObject.value(QStringLiteral("assetId")).toString().toStdString());
+                if (assetId.isNull()) {
+                    if (error) *error = QStringLiteral("Invalid clip assetId");
+                    return false;
+                }
+
+                ccos::timeline::Clip clip(clipId, assetId);
+                clip.setStart(decodeTime(clipObject.value(QStringLiteral("start")).toObject()));
+                clip.setSourceRange(
+                    decodeTime(clipObject.value(QStringLiteral("sourceIn")).toObject()),
+                    decodeTime(clipObject.value(QStringLiteral("sourceOut")).toObject()));
+
+                if (version >= 3) {
+                    clip.setSpeed(clipObject.value(QStringLiteral("speed")).toDouble(1.0));
+                    decodeTransform(clipObject.value(QStringLiteral("transform")).toObject(), clip.transform());
+                    for (const auto& effect : clipObject.value(QStringLiteral("effects")).toArray()) {
+                        clip.addEffect(effect.toString());
+                    }
+                }
+                if (version >= 6) {
+                    clip.setTransitionIn(
+                        clipObject.value(QStringLiteral("transitionInId")).toString(QStringLiteral("cut")),
+                        clipObject.value(QStringLiteral("transitionInDurationMs")).toInteger(0));
+                }
                 track.addClip(clip);
             }
             tracks.push_back(std::move(track));
         }
-        if (tracks.empty()) { tracks.emplace_back(ccos::timeline::TrackType::Video); tracks.emplace_back(ccos::timeline::TrackType::Audio); }
-    }
-    if (version >= 4) {
-        for (const auto& value : root.value(QStringLiteral("textLayers")).toArray()) {
-            const auto o = value.toObject(); ccos::text::TextLayer layer(o.value(QStringLiteral("text")).toString()); layer.setStart(decodeTime(o.value(QStringLiteral("start")).toObject())); layer.setDuration(decodeTime(o.value(QStringLiteral("duration")).toObject())); layer.setPosition(o.value(QStringLiteral("x")).toDouble(0.5), o.value(QStringLiteral("y")).toDouble(0.85));
-            auto& s = layer.style(); s.family = o.value(QStringLiteral("family")).toString(s.family); s.size = o.value(QStringLiteral("size")).toDouble(s.size); s.color = o.value(QStringLiteral("color")).toString(s.color); s.bold = o.value(QStringLiteral("bold")).toBool(s.bold); s.italic = o.value(QStringLiteral("italic")).toBool(s.italic); s.opacity = o.value(QStringLiteral("opacity")).toDouble(s.opacity); project.addTextLayer(std::move(layer));
+        if (tracks.empty()) {
+            tracks.emplace_back(ccos::timeline::TrackType::Video);
+            tracks.emplace_back(ccos::timeline::TrackType::Audio);
         }
     }
+
+    std::unordered_set<std::string> textIds;
+    if (version >= 4) {
+        for (const auto& value : root.value(QStringLiteral("textLayers")).toArray()) {
+            const auto object = value.toObject();
+            ccos::core::Uuid textId;
+            if (!parseUuid(object.value(QStringLiteral("id")), textId, version >= 6, error, QStringLiteral("textLayers[].id"))) return false;
+            if (!addUniqueId(textId, textIds, error, QStringLiteral("text-layer"))) return false;
+
+            ccos::text::TextLayer layer(textId, object.value(QStringLiteral("text")).toString());
+            layer.setStart(decodeTime(object.value(QStringLiteral("start")).toObject()));
+            layer.setDuration(decodeTime(object.value(QStringLiteral("duration")).toObject()));
+            layer.setPosition(object.value(QStringLiteral("x")).toDouble(0.5), object.value(QStringLiteral("y")).toDouble(0.85));
+
+            auto& style = layer.style();
+            style.family = object.value(QStringLiteral("family")).toString(style.family);
+            style.size = object.value(QStringLiteral("size")).toDouble(style.size);
+            style.color = object.value(QStringLiteral("color")).toString(style.color);
+            style.bold = object.value(QStringLiteral("bold")).toBool(style.bold);
+            style.italic = object.value(QStringLiteral("italic")).toBool(style.italic);
+            style.opacity = object.value(QStringLiteral("opacity")).toDouble(style.opacity);
+            loaded.addTextLayer(std::move(layer));
+        }
+    }
+
+    project = std::move(loaded);
     return true;
 }
-}
+
+} // namespace ccos::project
