@@ -42,6 +42,7 @@ private Q_SLOTS:
     void nudgeSelectedClipLeft();
     void nudgeSelectedClipRight();
     void setSelectedClipSpeed();
+    void setSelectedClipAudioMix();
     void addEffectToSelectedClip();
     void setTransitionOnSelectedClip();
 
