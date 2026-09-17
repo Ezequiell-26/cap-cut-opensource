@@ -1,19 +1,27 @@
 #include "media/MediaDerivatives.hpp"
+#include "core/ProcessRunner.hpp"
+
 #include <QDir>
 #include <QFileInfo>
-#include <QProcess>
 
 namespace ccos::media {
 namespace {
-QString run(const QStringList& args, const QString& executable, QString* error) {
-    QProcess p;
-    p.start(executable, args);
-    if (!p.waitForStarted(3000)) { if (error) *error = p.errorString(); return {}; }
-    if (!p.waitForFinished(-1) || p.exitStatus() != QProcess::NormalExit || p.exitCode() != 0) {
-        if (error) *error = QString::fromLocal8Bit(p.readAllStandardError());
-        return {};
+bool run(const QStringList& args, const QString& executable, std::chrono::milliseconds timeout, QString* error) {
+    ccos::core::ProcessRunner runner;
+    ccos::core::ProcessConfig config;
+    config.executable = executable;
+    config.arguments = args;
+    config.timeout = timeout;
+    config.startupTimeout = std::chrono::seconds(5);
+    config.maxOutputSize = 4 * 1024 * 1024;
+    config.riskLevel = ccos::core::ProcessConfig::RiskLevel::Medium;
+
+    const auto result = runner.executeSync(config);
+    if (!result.isSuccess()) {
+        if (error) *error = result.errorMessage();
+        return false;
     }
-    return QStringLiteral("ok");
+    return true;
 }
 }
 
@@ -27,19 +35,27 @@ QString MediaDerivatives::waveformPath(const MediaCache& cache, const MediaAsset
 
 bool MediaDerivatives::createThumbnail(const MediaAsset& asset, const QString& outputPath, qint64 timeMs,
                                        const QString& executable, QString* error) {
-    if (asset.path().isEmpty() || outputPath.isEmpty()) { if (error) *error = QStringLiteral("Thumbnail input/output required"); return false; }
+    if (asset.path().isEmpty() || outputPath.isEmpty()) {
+        if (error) *error = QStringLiteral("Thumbnail input/output required");
+        return false;
+    }
     QDir().mkpath(QFileInfo(outputPath).absolutePath());
-    return !run({QStringLiteral("-y"), QStringLiteral("-ss"), QString::number(timeMs / 1000.0, 'f', 3),
-                 QStringLiteral("-i"), asset.path(), QStringLiteral("-frames:v"), QStringLiteral("1"),
-                 QStringLiteral("-q:v"), QStringLiteral("3"), outputPath}, executable, error).isEmpty();
+    return run({QStringLiteral("-y"), QStringLiteral("-ss"), QString::number(timeMs / 1000.0, 'f', 3),
+                QStringLiteral("-i"), asset.path(), QStringLiteral("-frames:v"), QStringLiteral("1"),
+                QStringLiteral("-q:v"), QStringLiteral("3"), outputPath},
+               executable, std::chrono::seconds(30), error);
 }
 
 bool MediaDerivatives::createWaveform(const MediaAsset& asset, const QString& outputPath,
                                       const QString& executable, QString* error) {
-    if (asset.path().isEmpty() || outputPath.isEmpty()) { if (error) *error = QStringLiteral("Waveform input/output required"); return false; }
+    if (asset.path().isEmpty() || outputPath.isEmpty()) {
+        if (error) *error = QStringLiteral("Waveform input/output required");
+        return false;
+    }
     QDir().mkpath(QFileInfo(outputPath).absolutePath());
-    return !run({QStringLiteral("-y"), QStringLiteral("-i"), asset.path(), QStringLiteral("-filter_complex"),
-                 QStringLiteral("aformat=channel_layouts=mono,showwavespic=s=1600x260:colors=white"),
-                 QStringLiteral("-frames:v"), QStringLiteral("1"), outputPath}, executable, error).isEmpty();
+    return run({QStringLiteral("-y"), QStringLiteral("-i"), asset.path(), QStringLiteral("-filter_complex"),
+                QStringLiteral("aformat=channel_layouts=mono,showwavespic=s=1600x260:colors=white"),
+                QStringLiteral("-frames:v"), QStringLiteral("1"), outputPath},
+               executable, std::chrono::minutes(2), error);
 }
 }
