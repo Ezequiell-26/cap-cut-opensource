@@ -1,0 +1,83 @@
+name: WebAssembly
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  QT_VERSION: '6.8.3'
+
+concurrency:
+  group: ccos-webassembly-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-wasm:
+    name: Build CCOS WebAssembly
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build
+
+      - name: Install Qt for WebAssembly
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          host: all_os
+          target: wasm
+          modules: qtmultimedia
+          cache: true
+
+      - name: Configure WebAssembly
+        run: cmake --preset web
+
+      - name: Build WebAssembly
+        run: cmake --build --preset web --parallel 2
+
+      - name: Assemble static web bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf web-dist
+          mkdir -p web-dist
+
+          test -f build/web/ccos-editor.html
+          cp build/web/ccos-editor.html web-dist/index.html
+
+          for file in build/web/ccos-editor.js build/web/ccos-editor.wasm build/web/qtloader.js; do
+            if [ -f "$file" ]; then
+              cp "$file" web-dist/
+            fi
+          done
+
+          find build/web -maxdepth 1 -type f \
+            \( -name 'ccos-editor.*' -o -name '*.worker.js' -o -name 'qtlogo.svg' \) \
+            ! -name 'ccos-editor.html' ! -name 'ccos-editor.js' ! -name 'ccos-editor.wasm' \
+            -exec cp {} web-dist/ \;
+
+          cat > web-dist/.nojekyll <<'EOF'
+
+EOF
+
+          test -f web-dist/index.html
+          test -f web-dist/ccos-editor.wasm
+
+      - name: Upload WebAssembly artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ccos-webassembly-${{ github.sha }}
+          path: web-dist
+          if-no-files-found: error
+          retention-days: 7
