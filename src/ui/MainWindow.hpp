@@ -33,6 +33,7 @@ private Q_SLOTS:
     void autosave();
     void exportTimeline();
     void cancelRender();
+    void relinkMissingMedia();
 
 protected:
     void closeEvent(QCloseEvent* event) override;
