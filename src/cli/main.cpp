@@ -45,9 +45,15 @@ int main(int argc, char* argv[]) {
     }
 
     const QString requestedOperation = req.value(QStringLiteral("op")).toString().trimmed().toLower();
+    if (requestedOperation == QStringLiteral("geocode") || requestedOperation == QStringLiteral("location_search")) {
+        ccos::project::Project emptyProject;
+        const auto result = ccos::api::EditorApi::command(emptyProject, req, parser.value(ffmpeg));
+        out << QJsonDocument(result).toJson(QJsonDocument::Indented) << '\n';
+        return result.value(QStringLiteral("ok")).toBool(false) ? 0 : 1;
+    }
+
     if (requestedOperation == QStringLiteral("doctor") || requestedOperation == QStringLiteral("hardware") ||
-        requestedOperation == QStringLiteral("hardware_capabilities") ||
-        requestedOperation == QStringLiteral("geocode") || requestedOperation == QStringLiteral("location_search")) {
+        requestedOperation == QStringLiteral("hardware_capabilities")) {
         out << QJsonDocument(ccos::api::EditorApi::hardwareCapabilities(parser.value(ffmpeg)))
                    .toJson(QJsonDocument::Indented)
             << '\n';
