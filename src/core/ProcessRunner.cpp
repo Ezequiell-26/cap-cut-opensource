@@ -130,13 +130,18 @@ ProcessResult ProcessRunner::runProcess(const ProcessConfig& config, const Contr
         process.setWorkingDirectory(config.workingDirectory);
     }
 
-    if (config.inheritEnvironment) {
-        const QProcessEnvironment environment = QProcessEnvironment::systemEnvironment();
-        process.setProcessEnvironment(config.sanitizeEnvironment ? sanitizedEnvironment(environment) : environment);
-    } else {
+    // Preserve the historical contract: an explicitly supplied environment
+    // replaces the inherited environment; an empty environment inherits when
+    // requested by the caller. Sanitization is applied to the actual launch set.
+    if (!config.environment.isEmpty()) {
         process.setProcessEnvironment(config.sanitizeEnvironment
                                           ? sanitizedEnvironment(config.environment)
                                           : config.environment);
+    } else if (config.inheritEnvironment) {
+        const QProcessEnvironment environment = QProcessEnvironment::systemEnvironment();
+        process.setProcessEnvironment(config.sanitizeEnvironment ? sanitizedEnvironment(environment) : environment);
+    } else {
+        process.setProcessEnvironment(QProcessEnvironment{});
     }
 
     QElapsedTimer timer;
