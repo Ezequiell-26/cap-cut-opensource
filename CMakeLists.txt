@@ -212,6 +212,7 @@ if(CCOS_BUILD_TESTS)
         tests/unit/render/RenderGraphSafetyTest.cpp
         tests/unit/render/ExportSettingsTest.cpp
         tests/unit/render/ExportPresetsTest.cpp
+        tests/unit/api/EditorApiTest.cpp
         tests/unit/api/CreativeMediaApiTest.cpp
         tests/unit/core/MitFoundationSmokeTest.cpp
         tests/unit/api/NasaMediaApiTest.cpp
