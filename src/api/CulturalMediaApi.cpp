@@ -45,6 +45,11 @@ QString firstString(const QJsonObject& object, const QStringList& keys) {
     return {};
 }
 
+QString normalizedTitle(const QString& value, const QString& fallback) {
+    const QString trimmed = value.trimmed();
+    return trimmed.isEmpty() ? fallback : trimmed;
+}
+
 QString nestedContent(const QJsonObject& object, const QString& parent, const QString& child) {
     return object.value(parent).toObject().value(child).toString().trimmed();
 }
@@ -172,7 +177,7 @@ void CulturalMediaApi::searchSmithsonian(
     queryParameters.addQueryItem(QStringLiteral("api_key"), apiKey.trimmed());
     url.setQuery(queryParameters);
 
-    // The Smithsonian requires the key as a query parameter on this endpoint.
+    // The Smithsonian documents api.data.gov credentials on this endpoint.
     requestJson(url, QStringLiteral("smithsonian_open_access"),
                 [this, callback = std::move(callback)](const QJsonDocument& document) mutable {
         const QVector<CreativeMediaItem> results = parseSmithsonian(document);
@@ -355,7 +360,7 @@ CreativeMediaItem CulturalMediaApi::parseMetObject(const QJsonDocument& document
 
     item.provider = QStringLiteral("met_open_access");
     item.id = id;
-    item.title = normalizedTitle(textValue(object, QStringLiteral("title")), id);
+    item.title = normalizedTitle(textValue(object, QStringLiteral("title")), item.id);
     item.creator = firstString(object, {QStringLiteral("artistDisplayName"), QStringLiteral("artistRole")});
     item.license = QStringLiteral("CC0 / public-domain image; verify item record");
     item.licenseUrl = QStringLiteral("https://www.metmuseum.org/hubs/open-access");
@@ -363,7 +368,6 @@ CreativeMediaItem CulturalMediaApi::parseMetObject(const QJsonDocument& document
     item.previewUrl = textValue(object, QStringLiteral("primaryImageSmall"));
     item.downloadUrl = textValue(object, QStringLiteral("primaryImage"));
     item.mimeType = QStringLiteral("image/jpeg");
-    item.width = object.value(QStringLiteral("galleryNumber")).toInt();
 
     return item;
 }
