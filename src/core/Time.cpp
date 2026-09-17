@@ -1,14 +1,12 @@
 #include "core/Time.hpp"
 
-#include <algorithm>
 #include <cmath>
-#include <numeric>
 #include <sstream>
 
 namespace ccos::core {
 
 namespace {
-constexpr std::int64_t gcd64(std::int64_t a, std::int64_t b) noexcept {
+std::int64_t gcd64(std::int64_t a, std::int64_t b) noexcept {
     a = a < 0 ? -a : a;
     b = b < 0 ? -b : b;
     while (b != 0) {
@@ -20,7 +18,7 @@ constexpr std::int64_t gcd64(std::int64_t a, std::int64_t b) noexcept {
 }
 }
 
-constexpr Time::Time(std::int64_t numerator, std::int32_t denominator) noexcept
+Time::Time(std::int64_t numerator, std::int32_t denominator) noexcept
     : numerator_(numerator), denominator_(denominator <= 0 ? 1 : denominator) {
     normalize();
 }
@@ -45,37 +43,33 @@ void Time::normalize() noexcept {
     denominator_ = static_cast<std::int32_t>(denominator_ / divisor);
 }
 
-constexpr Time operator+(Time lhs, Time rhs) noexcept {
+Time operator+(Time lhs, Time rhs) noexcept {
     return Time(lhs.numerator_ * rhs.denominator_ + rhs.numerator_ * lhs.denominator_,
                 static_cast<std::int32_t>(lhs.denominator_ * rhs.denominator_));
 }
 
-constexpr Time operator-(Time lhs, Time rhs) noexcept {
+Time operator-(Time lhs, Time rhs) noexcept {
     return Time(lhs.numerator_ * rhs.denominator_ - rhs.numerator_ * lhs.denominator_,
                 static_cast<std::int32_t>(lhs.denominator_ * rhs.denominator_));
 }
 
-constexpr bool operator==(Time lhs, Time rhs) noexcept {
+bool operator==(Time lhs, Time rhs) noexcept {
     return lhs.numerator_ * rhs.denominator_ == rhs.numerator_ * lhs.denominator_;
 }
 
-constexpr auto operator<=>(Time lhs, Time rhs) noexcept {
+auto operator<=>(Time lhs, Time rhs) noexcept {
     const auto left = lhs.numerator_ * static_cast<std::int64_t>(rhs.denominator_);
     const auto right = rhs.numerator_ * static_cast<std::int64_t>(lhs.denominator_);
     return left <=> right;
 }
 
-constexpr Time Time::fromSeconds(double value, std::int32_t denominator) noexcept {
-    if (!std::isfinite(value) || denominator <= 0) {
-        return {};
-    }
+Time Time::fromSeconds(double value, std::int32_t denominator) noexcept {
+    if (!std::isfinite(value) || denominator <= 0) return {};
     return Time(static_cast<std::int64_t>(std::llround(value * denominator)), denominator);
 }
 
-constexpr Time Time::fromFrames(std::int64_t frame, std::int32_t fpsNumerator, std::int32_t fpsDenominator) noexcept {
-    if (fpsNumerator <= 0 || fpsDenominator <= 0) {
-        return {};
-    }
+Time Time::fromFrames(std::int64_t frame, std::int32_t fpsNumerator, std::int32_t fpsDenominator) noexcept {
+    if (fpsNumerator <= 0 || fpsDenominator <= 0) return {};
     return Time(frame * static_cast<std::int64_t>(fpsDenominator), fpsNumerator);
 }
 
