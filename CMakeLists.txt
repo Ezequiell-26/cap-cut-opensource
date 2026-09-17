@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.24)
 
 project(CCOS
-    VERSION 0.1.0
+    VERSION 0.2.0
     DESCRIPTION "CCOS - Open Source Professional Video Editor"
     LANGUAGES CXX
 )
@@ -29,14 +29,25 @@ add_library(ccos_core
     src/media/MediaImporter.cpp
     src/media/MediaProbe.cpp
     src/media/MediaCache.cpp
+    src/media/ProxyManager.cpp
+    src/media/MediaDerivatives.cpp
     src/timeline/Clip.cpp
     src/timeline/Track.cpp
     src/timeline/Timeline.cpp
     src/timeline/TimelineEditor.cpp
     src/timeline/Keyframe.cpp
+    src/audio/AudioMixer.cpp
+    src/effects/BuiltinEffects.cpp
+    src/transitions/Transition.cpp
+    src/text/SubtitleParser.cpp
+    src/ai/WhisperAdapter.cpp
+    src/plugins/PluginManager.cpp
     src/render/RenderManager.cpp
     src/render/FfmpegExporter.cpp
     src/render/TimelineExporter.cpp
+    src/render/TimelineCompositor.cpp
+    src/render/HardwareCapabilities.cpp
+    src/render/RenderExecutor.cpp
 )
 
 target_include_directories(ccos_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
@@ -65,7 +76,16 @@ else()
     target_compile_options(ccos_editor PRIVATE -Wall -Wextra -Wpedantic -Wconversion -Wshadow)
 endif()
 
+include(GNUInstallDirs)
 install(TARGETS ccos_editor RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} BUNDLE DESTINATION .)
+
+set(CPACK_PACKAGE_NAME "CCOS")
+set(CPACK_PACKAGE_VENDOR "CCOS Open Source")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Open source C++ video editor")
+set(CPACK_PACKAGE_VERSION ${PROJECT_VERSION})
+set(CPACK_PACKAGE_CONTACT "CCOS maintainers")
+set(CPACK_GENERATOR "ZIP;TGZ")
+include(CPack)
 
 if(CCOS_BUILD_TESTS)
     enable_testing()
@@ -98,5 +118,4 @@ if(CCOS_BUILD_TESTS)
     gtest_discover_tests(ccos_tests)
 endif()
 
-include(GNUInstallDirs)
 install(FILES LICENSE DESTINATION ${CMAKE_INSTALL_DOCDIR} RENAME LICENSE.txt)
