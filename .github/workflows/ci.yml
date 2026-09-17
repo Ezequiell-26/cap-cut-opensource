@@ -30,7 +30,7 @@ jobs:
           host: ${{ startsWith(matrix.os, 'windows') && 'windows' || startsWith(matrix.os, 'macos') && 'mac' || 'linux' }}
           target: 'desktop'
           arch: ${{ startsWith(matrix.os, 'windows') && 'win64_msvc2022_64' || startsWith(matrix.os, 'macos') && 'clang_64' || 'linux_gcc_64' }}
-          modules: 'qtmultimedia;qtsvg'
+          modules: 'qtmultimedia'
           cache: true
 
       - name: Install Linux dependencies
