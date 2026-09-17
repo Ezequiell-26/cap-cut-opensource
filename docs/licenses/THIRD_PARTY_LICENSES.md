@@ -14,7 +14,7 @@ CCOS source code is MIT. Dependencies remain under their own licenses. This inve
 | spdlog | Logging | MIT |
 | Taskflow | Parallel task graph execution | MIT |
 | magic_enum | Compile-time enum reflection | MIT |
-| cpp-httplib | Local HTTP automation | MIT/BSD-3-Clause dual licensing; retain upstream notice |
+| cpp-httplib | Local HTTP automation | MIT |
 | GLM | Math/graphics primitives | MIT |
 | toml++ | Configuration | MIT |
 
