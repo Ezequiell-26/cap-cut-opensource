@@ -1,7 +1,10 @@
 #pragma once
 #include "core/CommandStack.hpp"
 #include "project/Project.hpp"
+#include "project/ProjectRecovery.hpp"
 #include <QMainWindow>
+
+#include <memory>
 
 class QListWidget;
 class QTreeWidget;
@@ -51,6 +54,7 @@ private:
 
     ccos::project::Project project_;
     ccos::core::CommandStack commandStack_;
+    std::unique_ptr<ccos::project::ProjectRecoveryManager> recoveryManager_;
     QString projectPath_;
     bool dirty_ = false;
     QListWidget* mediaBin_ = nullptr;
