@@ -5,6 +5,13 @@
 
 if(EMSCRIPTEN)
     list(PREPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/wasm-modules")
+    # Qt 6.8's WebAssembly package does not ship Qt Concurrent. Keep the
+    # shared top-level component list intact for desktop and provide a
+    # zero-library compatibility target for the WASM source subset, which
+    # excludes the native ProcessRunner/JobSystem/PipelineGraph sources.
+    set(Qt6Concurrent_DIR
+        "${CMAKE_CURRENT_SOURCE_DIR}/cmake/wasm-qt-shims/Qt6Concurrent"
+        CACHE PATH "CCOS WebAssembly Qt Concurrent compatibility package" FORCE)
 endif()
 
 function(ccos_enable_webassembly_ui)
