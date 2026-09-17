@@ -1,6 +1,7 @@
 #include "ai/WhisperAdapter.hpp"
 #include "core/ProcessRunner.hpp"
 
+#include <QFile>
 #include <QFileInfo>
 
 namespace ccos::ai {
@@ -42,8 +43,8 @@ bool WhisperAdapter::transcribeToSrt(const QString& mediaPath, const QString& ou
                               QFileInfo(outputSrt).completeBaseName() + QStringLiteral(".srt");
     if (generated != outputSrt && QFileInfo::exists(generated)) {
         if (QFileInfo::exists(outputSrt)) QFile::remove(outputSrt);
-        if (!QFile::rename(generated, outputSrt) && error) {
-            *error = QStringLiteral("Whisper produced an SRT file but it could not be moved to the requested output path");
+        if (!QFile::rename(generated, outputSrt)) {
+            if (error) *error = QStringLiteral("Whisper produced an SRT file but it could not be moved to the requested output path");
             return false;
         }
     }
