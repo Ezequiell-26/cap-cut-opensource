@@ -45,6 +45,10 @@ struct ProcessConfig {
     std::chrono::milliseconds startupTimeout{5'000};
     QString workingDirectory;
     QProcessEnvironment environment;
+    bool inheritEnvironment = true;
+    // Removes common credential-bearing environment variables before launching
+    // high-risk external tools. Explicitly supplied variables are sanitized too.
+    bool sanitizeEnvironment = false;
     bool readStandardOutput = true;
     bool readStandardError = true;
     qint64 maxOutputSize = 10 * 1024 * 1024;
@@ -65,6 +69,7 @@ public:
 
     void cancelAll();
     [[nodiscard]] static bool validateExecutable(const QString& executable);
+    [[nodiscard]] static QProcessEnvironment sanitizedEnvironment(const QProcessEnvironment& source);
 
 Q_SIGNALS:
     void processStarted(const QString& executable, const QStringList& arguments);
