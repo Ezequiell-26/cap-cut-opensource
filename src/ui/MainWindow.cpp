@@ -263,6 +263,7 @@ void MainWindow::buildUi() {
         add(QStringLiteral("Nudge Left 0.1s"), &MainWindow::nudgeSelectedClipLeft);
         add(QStringLiteral("Nudge Right 0.1s"), &MainWindow::nudgeSelectedClipRight);
         add(QStringLiteral("Set Speed…"), &MainWindow::setSelectedClipSpeed);
+        add(QStringLiteral("Audio Gain / Mute…"), &MainWindow::setSelectedClipAudioMix);
         add(QStringLiteral("Add Effect…"), &MainWindow::addEffectToSelectedClip);
         add(QStringLiteral("Set Transition…"), &MainWindow::setTransitionOnSelectedClip);
         menu.exec(timeline_->viewport()->mapToGlobal(position));
@@ -541,6 +542,37 @@ void MainWindow::setSelectedClipSpeed() {
     setDirty(true);
     refreshTimeline();
     statusLabel_->setText(QStringLiteral("Speed set to %1x").arg(speed, 0, 'f', 2));
+}
+
+void MainWindow::setSelectedClipAudioMix() {
+    int trackIndex = -1;
+    int clipIndex = -1;
+    if (!selectedTimelineClip(&trackIndex, &clipIndex)) return;
+    auto& track = project_.timeline().tracks()[static_cast<std::size_t>(trackIndex)];
+    const auto& clip = track.clips()[static_cast<std::size_t>(clipIndex)];
+
+    bool gainAccepted = false;
+    const double gain = QInputDialog::getDouble(
+        this, QStringLiteral("Audio Gain"),
+        QStringLiteral("Linear gain (0 = silent, 1 = unity, 4 = +12 dB):"),
+        clip.audioGain(), 0.0, 4.0, 3, &gainAccepted);
+    if (!gainAccepted) return;
+
+    bool muteAccepted = false;
+    const QString muteChoice = QInputDialog::getItem(
+        this, QStringLiteral("Clip Audio"),
+        QStringLiteral("State:"), QStringList{QStringLiteral("Unmuted"), QStringLiteral("Muted")},
+        clip.audioMuted() ? 1 : 0, false, &muteAccepted);
+    if (!muteAccepted) return;
+
+    const bool muted = muteChoice == QStringLiteral("Muted");
+    if (!commandStack_.execute(std::make_unique<ccos::timeline::SetClipAudioMixCommand>(
+            track, static_cast<std::size_t>(clipIndex), gain, muted))) return;
+    setDirty(true);
+    refreshTimeline();
+    statusLabel_->setText(QStringLiteral("Audio: %1x%2")
+        .arg(gain, 0, 'f', 2)
+        .arg(muted ? QStringLiteral(" muted") : QString()));
 }
 
 void MainWindow::addEffectToSelectedClip() {
