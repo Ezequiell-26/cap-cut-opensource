@@ -49,6 +49,7 @@ public:
     void setAudioMuted(bool value) noexcept { audioMuted_ = value; }
     void setStart(ccos::core::Time value) noexcept { start_ = value; }
     void setDuration(ccos::core::Time value) noexcept { duration_ = value; sourceOut_ = sourceIn_ + value; }
+    void setTimelineDuration(ccos::core::Time value) noexcept { if (value > ccos::core::Time{}) duration_ = value; }
     void setSourceRange(ccos::core::Time in, ccos::core::Time out) noexcept;
     void regenerateId() { id_ = ccos::core::Uuid{}; }
     void addEffect(QString id) { if (!id.isEmpty() && !effects_.contains(id)) effects_.append(std::move(id)); }
