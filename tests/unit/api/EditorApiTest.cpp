@@ -37,6 +37,28 @@ TEST(EditorApiTest, ExportPresetsAreMachineReadable) {
     }
 }
 
+TEST(EditorApiTest, CulturalMediaProvidersAreMachineReadable) {
+    const QJsonObject result = ccos::api::EditorApi::culturalMediaProviders();
+
+    ASSERT_TRUE(result.value(QStringLiteral("ok")).toBool());
+    const QJsonArray providers = result.value(QStringLiteral("providers")).toArray();
+    ASSERT_EQ(providers.size(), 5);
+    for (const auto& value : providers) {
+        const QJsonObject provider = value.toObject();
+        EXPECT_FALSE(provider.value(QStringLiteral("id")).toString().isEmpty());
+        EXPECT_FALSE(provider.value(QStringLiteral("auth")).toString().isEmpty());
+        EXPECT_FALSE(provider.value(QStringLiteral("rights")).toString().isEmpty());
+    }
+}
+
+TEST(EditorApiTest, CulturalMediaProviderCatalogIsExposedAsCommand) {
+    auto project = makeProject();
+    const QJsonObject request{{QStringLiteral("op"), QStringLiteral("cultural_media_providers")}};
+    const QJsonObject result = ccos::api::EditorApi::command(project, request);
+    EXPECT_TRUE(result.value(QStringLiteral("ok")).toBool());
+    EXPECT_EQ(result.value(QStringLiteral("providers")).toArray().size(), 5);
+}
+
 TEST(EditorApiTest, UnknownExportPresetFailsBeforeStartingProcess) {
     auto project = makeProject();
     const QJsonObject request{
