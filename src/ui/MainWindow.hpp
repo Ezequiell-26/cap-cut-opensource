@@ -4,9 +4,10 @@
 
 class QListWidget;
 class QTreeWidget;
-class QTableWidget;
 class QLabel;
 class QSlider;
+class QMediaPlayer;
+class QAudioOutput;
 
 namespace ccos::ui {
 class MainWindow final : public QMainWindow {
@@ -21,6 +22,7 @@ private slots:
     void importMedia();
     void addSelectedToTimeline();
     void updateSelection();
+    void togglePlayback();
 
 private:
     void buildUi();
@@ -28,6 +30,7 @@ private:
     void refreshMediaBin();
     void refreshTimeline();
     QString projectDialogPath(bool save) const;
+    void loadPreviewSource(const QString& path);
 
     ccos::project::Project project_;
     QString projectPath_;
@@ -36,5 +39,7 @@ private:
     QLabel* previewLabel_ = nullptr;
     QLabel* statusLabel_ = nullptr;
     QSlider* timelineSlider_ = nullptr;
+    QMediaPlayer* player_ = nullptr;
+    QAudioOutput* audioOutput_ = nullptr;
 };
 }
