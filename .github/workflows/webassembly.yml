@@ -40,16 +40,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [ ! -d "$EMSDK_PATH" ]; then
-            git clone --depth 1 --branch "$EM_VERSION" https://github.com/emscripten-core/emsdk.git "$EMSDK_PATH"
+          emsdk_dir="${{ github.workspace }}/.emsdk"
+          if [ ! -d "$emsdk_dir" ]; then
+            git clone --depth 1 --branch "$EM_VERSION" https://github.com/emscripten-core/emsdk.git "$emsdk_dir"
           fi
-          "$EMSDK_PATH/emsdk" install "$EM_VERSION"
-          "$EMSDK_PATH/emsdk" activate "$EM_VERSION"
-          source "$EMSDK_PATH/emsdk_env.sh"
-          echo "EMSDK=$EMSDK_PATH" >> "$GITHUB_ENV"
-          echo "$EMSDK_PATH" >> "$GITHUB_PATH"
-          echo "$EMSDK_PATH/upstream/emscripten" >> "$GITHUB_PATH"
-          echo "EM_CACHE=$EMSDK_PATH/upstream/emscripten/cache" >> "$GITHUB_ENV"
+          "$emsdk_dir/emsdk" install "$EM_VERSION"
+          "$emsdk_dir/emsdk" activate "$EM_VERSION"
+          source "$emsdk_dir/emsdk_env.sh"
+          echo "EMSDK=$emsdk_dir" >> "$GITHUB_ENV"
+          echo "$emsdk_dir" >> "$GITHUB_PATH"
+          echo "$emsdk_dir/upstream/emscripten" >> "$GITHUB_PATH"
+          echo "EM_CACHE=$emsdk_dir/upstream/emscripten/cache" >> "$GITHUB_ENV"
           emcc --version
 
       - name: Install Qt for WebAssembly
