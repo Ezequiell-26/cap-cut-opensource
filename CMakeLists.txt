@@ -1,9 +1,13 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(CCOS VERSION 0.7.0 DESCRIPTION "CCOS - Open Source Professional Video Editor with AI & ML" LANGUAGES CXX)
+project(CCOS VERSION 0.8.0 DESCRIPTION "CCOS - Open Source Professional Video Editor with AI & ML" LANGUAGES CXX)
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTOUIC ON)
+set(CMAKE_AUTORCC ON)
 
 option(CCOS_BUILD_TESTS "Build unit tests" ON)
 option(CCOS_BUILD_CLI "Build headless CLI/API runner" ON)
@@ -60,17 +64,17 @@ if(EMSCRIPTEN)
     set(CCOS_ENABLE_LLAMA_SERVER_PROFILE OFF CACHE BOOL "" FORCE)
 endif()
 
-set(CMAKE_AUTOMOC ON)
-set(CMAKE_AUTOUIC ON)
-set(CMAKE_AUTORCC ON)
-
 include(GNUInstallDirs)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/CCOSMitDependencies.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/CCOSProfessionalDependencies.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/CCOSExtendedOpenSource.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/CCOSUtilityExtensions.cmake)
 
-find_package(Qt6 6.4 REQUIRED COMPONENTS Core Gui Network Widgets Multimedia MultimediaWidgets Concurrent)
+if(EMSCRIPTEN)
+    find_package(Qt6 6.4 REQUIRED COMPONENTS Core Gui Network Widgets Multimedia MultimediaWidgets)
+else()
+    find_package(Qt6 6.4 REQUIRED COMPONENTS Core Gui Network Widgets Multimedia MultimediaWidgets Concurrent)
+endif()
 
 set(CCOS_SOURCES
     src/api/EditorApi.cpp
@@ -112,6 +116,7 @@ set(CCOS_SOURCES
     src/timeline/TimelineEditor.cpp
     src/timeline/Keyframe.cpp
     src/audio/AudioMixer.cpp
+    src/audio/AudioMeter.cpp
     src/effects/BuiltinEffects.cpp
     src/transitions/Transition.cpp
     src/text/SubtitleParser.cpp
@@ -120,7 +125,9 @@ set(CCOS_SOURCES
     src/ai/OpenAICompatibleProvider.cpp
     src/ai/LlamaCppProvider.cpp
     src/ai/AdvancedAI.cpp
+    src/ai/AICommandPlan.cpp
     src/plugins/PluginManager.cpp
+    src/plugins/PluginPolicy.cpp
     src/render/graph/RenderGraph.cpp
     src/render/RenderManager.cpp
     src/render/ExportSettings.cpp
@@ -131,6 +138,8 @@ set(CCOS_SOURCES
     src/render/TextComposer.cpp
     src/render/HardwareCapabilities.cpp
     src/render/RenderExecutor.cpp
+    src/render/RenderQueueStore.cpp
+    src/color/ColorPipeline.cpp
     src/web/BrowserStorage.cpp
     src/web/WebFfmpegRenderer.cpp
 )
@@ -140,6 +149,7 @@ if(EMSCRIPTEN)
         src/core/ProcessRunner.cpp
         src/core/JobSystem.cpp
         src/core/PipelineGraph.cpp
+        src/core/CrashDiagnostics.cpp
         src/media/MediaImporter.cpp
         src/media/MediaProbe.cpp
         src/media/ProxyManager.cpp
@@ -177,11 +187,11 @@ endif()
 
 add_library(ccos_core ${CCOS_SOURCES})
 target_include_directories(ccos_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
-if(CCOS_ENABLE_VISION)
-    target_include_directories(ccos_core PUBLIC ${OpenCV_INCLUDE_DIRS})
-endif()
 target_compile_features(ccos_core PUBLIC cxx_std_20)
-target_link_libraries(ccos_core PUBLIC Qt6::Core Qt6::Gui Qt6::Network Qt6::Concurrent)
+target_link_libraries(ccos_core PUBLIC Qt6::Core Qt6::Gui Qt6::Network)
+if(NOT EMSCRIPTEN)
+    target_link_libraries(ccos_core PUBLIC Qt6::Concurrent)
+endif()
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/CCOSTextShaping.cmake)
 ccos_configure_text_shaping(ccos_core)
 if(TARGET ccos_utility_extensions)
@@ -228,7 +238,6 @@ endif()
 if(TARGET ccos_professional_interchange)
     target_link_libraries(ccos_core PUBLIC ccos_professional_interchange)
 endif()
-
 if(MSVC)
     target_compile_options(ccos_core PRIVATE /W4 /permissive-)
 else()
@@ -314,6 +323,11 @@ if(CCOS_BUILD_TESTS AND NOT EMSCRIPTEN)
         tests/unit/api/NasaMediaApiTest.cpp
         tests/unit/ai/LlamaCppProviderTest.cpp
         tests/unit/core/MitFoundationSmokeTest.cpp
+        tests/unit/audio/AudioMeterTest.cpp
+        tests/unit/color/ColorPipelineTest.cpp
+        tests/unit/render/RenderQueueStoreTest.cpp
+        tests/unit/plugins/PluginPolicyTest.cpp
+        tests/unit/ai/AICommandPlanTest.cpp
     )
     if(CCOS_ENABLE_CULTURAL_MEDIA_API)
         target_sources(ccos_tests PRIVATE tests/unit/api/CulturalMediaApiTest.cpp)
