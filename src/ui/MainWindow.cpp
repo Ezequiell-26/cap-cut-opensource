@@ -67,31 +67,42 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
                 if (!success && !error.isEmpty()) QMessageBox::critical(this, QStringLiteral("Render failed"), error);
             });
 
-    const QString recovery = recoveryPath();
-    if (QFileInfo::exists(recovery)) {
-        const auto answer = QMessageBox::question(this, QStringLiteral("Recover Project"),
-                                                   QStringLiteral("An autosaved recovery project was found. Recover it?"));
-        if (answer == QMessageBox::Yes) {
-            QString error;
-            ccos::project::Project recovered;
-            if (ccos::project::ProjectSerializer::load(recovered, recovery, &error)) {
-                project_ = std::move(recovered);
-                projectPath_.clear();
-                commandStack_.clear();
-                refreshMediaBin();
-                refreshTimeline();
-                statusLabel_->setText(QStringLiteral("Recovered autosaved project"));
-            } else {
-                statusLabel_->setText(QStringLiteral("Recovery failed: %1").arg(error));
+    const QDir recoveryDirectory(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) +
+                                 QStringLiteral("/Recovery"));
+    if (recoveryDirectory.exists()) {
+        const QFileInfoList candidates = recoveryDirectory.entryInfoList(
+            QStringList() << QStringLiteral("*.ccos"), QDir::Files | QDir::Readable, QDir::Time);
+        if (!candidates.isEmpty()) {
+            const QString recovery = candidates.first().absoluteFilePath();
+            const auto answer = QMessageBox::question(
+                this,
+                QStringLiteral("Recover Project"),
+                QStringLiteral("A recoverable project snapshot was found from %1. Recover it?")
+                    .arg(candidates.first().lastModified().toLocalTime().toString(Qt::DefaultLocaleShortDate)));
+            if (answer == QMessageBox::Yes) {
+                QString error;
+                ccos::project::Project recovered;
+                if (ccos::project::ProjectSerializer::load(recovered, recovery, &error)) {
+                    project_ = std::move(recovered);
+                    projectPath_.clear();
+                    commandStack_.clear();
+                    refreshMediaBin();
+                    refreshTimeline();
+                    statusLabel_->setText(QStringLiteral("Recovered autosaved project"));
+                } else {
+                    statusLabel_->setText(QStringLiteral("Recovery failed: %1").arg(error));
+                }
             }
         }
     }
 }
 
 QString MainWindow::recoveryPath() const {
-    const auto dir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
-    QDir().mkpath(dir);
-    return dir + QStringLiteral("/recovery.ccos");
+    const auto root = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    const QString directoryPath = root + QStringLiteral("/Recovery");
+    QDir().mkpath(directoryPath);
+    const QString projectId = QString::fromStdString(project_.id().toString());
+    return QDir(directoryPath).filePath(projectId + QStringLiteral(".ccos"));
 }
 
 void MainWindow::autosave() {
@@ -286,8 +297,9 @@ void MainWindow::openProject() {
     const auto path = projectDialogPath(false); if (path.isEmpty()) return;
     QString error; ccos::project::Project loaded;
     if (!ccos::project::ProjectSerializer::load(loaded, path, &error)) { QMessageBox::critical(this, QStringLiteral("Open failed"), error); return; }
+    QFile::remove(recoveryPath());
     player_->stop(); commandStack_.clear(); project_ = std::move(loaded); projectPath_ = path;
-    refreshMediaBin(); refreshTimeline(); QFile::remove(recoveryPath()); statusLabel_->setText(QStringLiteral("Opened: %1").arg(QFileInfo(path).fileName()));
+    refreshMediaBin(); refreshTimeline(); statusLabel_->setText(QStringLiteral("Opened: %1").arg(QFileInfo(path).fileName()));
 }
 
 void MainWindow::importMedia() {
