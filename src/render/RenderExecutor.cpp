@@ -23,9 +23,8 @@ RenderExecutor::RenderExecutor(QObject* parent) : QObject(parent) {
         }
     });
 
-    connect(&process_, &QProcess::errorOccurred, this, [this](QProcess::ProcessError) {
-        if (!running()) return;
-        if (process_.error() != QProcess::UnknownError) {
+    connect(&process_, &QProcess::errorOccurred, this, [this](QProcess::ProcessError error) {
+        if (error == QProcess::FailedToStart && !running()) {
             Q_EMIT finished(false, process_.errorString());
         }
     });
