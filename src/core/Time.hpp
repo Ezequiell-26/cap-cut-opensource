@@ -1,11 +1,13 @@
 #pragma once
 
-#include <cstdint>
 #include <compare>
+#include <cstdint>
 #include <string>
 
 namespace ccos::core {
 
+/// Exact timeline time represented as a reduced rational number.
+/// Values are expressed in seconds; frames are converted using the supplied frame rate.
 class Time {
 public:
     Time() noexcept = default;
