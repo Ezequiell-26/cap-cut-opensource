@@ -244,9 +244,10 @@ if(CCOS_BUILD_TESTS)
         tests/unit/render/ExportPresetsTest.cpp
         tests/unit/api/EditorApiTest.cpp
         tests/unit/api/CreativeMediaApiTest.cpp
-        tests/unit/core/MitFoundationSmokeTest.cpp
         tests/unit/api/NasaMediaApiTest.cpp
         tests/unit/api/CulturalMediaApiTest.cpp
+        tests/unit/ai/LlamaCppProviderTest.cpp
+        tests/unit/core/MitFoundationSmokeTest.cpp
     )
     if(CCOS_ENABLE_LOCAL_AUTOMATION_API)
         target_sources(ccos_tests PRIVATE tests/unit/api/LocalAutomationApiTest.cpp)
