@@ -324,6 +324,42 @@ QJsonObject EditorApi::command(ccos::project::Project& project, const QJsonObjec
                            {QStringLiteral("remainingClips"), static_cast<int>(track.clips().size())}};
     }
 
+    if (operation == QStringLiteral("set_audio_mix") || operation == QStringLiteral("audio_mix")) {
+        int trackIndex = -1;
+        int clipIndex = -1;
+        QString parseError;
+        if (!parseNonNegativeIndex(request, QStringLiteral("trackIndex"), &trackIndex, &parseError) ||
+            !parseNonNegativeIndex(request, QStringLiteral("clipIndex"), &clipIndex, &parseError)) {
+            return QJsonObject{{QStringLiteral("ok"), false}, {QStringLiteral("error"), parseError}};
+        }
+        const auto& tracks = project.timeline().tracks();
+        if (trackIndex >= static_cast<int>(tracks.size())) {
+            return QJsonObject{{QStringLiteral("ok"), false}, {QStringLiteral("error"), QStringLiteral("trackIndex is out of range")}};
+        }
+        auto& track = project.timeline().tracks()[static_cast<std::size_t>(trackIndex)];
+        if (clipIndex >= static_cast<int>(track.clips().size())) {
+            return QJsonObject{{QStringLiteral("ok"), false}, {QStringLiteral("error"), QStringLiteral("clipIndex is out of range")}};
+        }
+        if (!request.contains(QStringLiteral("gain")) || !request.value(QStringLiteral("gain")).isDouble()) {
+            return QJsonObject{{QStringLiteral("ok"), false}, {QStringLiteral("error"), QStringLiteral("gain is required and must be a number")}};
+        }
+        const double gain = request.value(QStringLiteral("gain")).toDouble();
+        if (!std::isfinite(gain) || gain < 0.0 || gain > 4.0) {
+            return QJsonObject{{QStringLiteral("ok"), false}, {QStringLiteral("error"), QStringLiteral("gain must be between 0 and 4")}};
+        }
+        const bool muted = request.value(QStringLiteral("muted")).toBool(false);
+        auto& clip = track.clips()[static_cast<std::size_t>(clipIndex)];
+        clip.setAudioGain(gain);
+        clip.setAudioMuted(muted);
+        return QJsonObject{
+            {QStringLiteral("ok"), true},
+            {QStringLiteral("track"), track.name()},
+            {QStringLiteral("clipIndex"), clipIndex},
+            {QStringLiteral("gain"), clip.audioGain()},
+            {QStringLiteral("muted"), clip.audioMuted()}
+        };
+    }
+
     if (operation == QStringLiteral("set_project_name")) {
         const QString name = request.value(QStringLiteral("name")).toString().trimmed();
         if (name.isEmpty()) return QJsonObject{{QStringLiteral("ok"), false}, {QStringLiteral("error"), QStringLiteral("name is required")}};
