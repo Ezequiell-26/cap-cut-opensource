@@ -29,12 +29,15 @@ Do not add JavaScript, TypeScript, Python, Rust, Go, Java, Kotlin, Swift or anot
 6. `.ccos` format changes require explicit schema versioning, migration and regression tests.
 7. UI must not block on long media, render, AI, network or filesystem operations.
 8. External processes must have startup limits, total timeouts, cancellation and bounded output.
-9. Plugins are deny-by-default. Manifest discovery never implies code execution.
-10. AI never directly mutates Project/Timeline state; it must go through validated intent and Commands.
-11. Every mutating operation must be undoable unless explicitly documented as non-editor infrastructure.
-12. Every completed feature must have automated verification appropriate to its risk.
-13. Prefer deterministic and reversible behavior; fail closed on ambiguous or unsafe input.
-14. New dependencies require license, origin, version/revision and purpose documentation.
+9. High-risk external tools such as FFmpeg must sanitize credential-bearing environment variables unless a documented tool-specific requirement proves otherwise.
+10. Plugins are deny-by-default. Manifest discovery never implies code execution.
+11. AI never directly mutates Project/Timeline state; it must go through validated intent and Commands.
+12. Every mutating operation must be undoable unless explicitly documented as non-editor infrastructure.
+13. Every completed feature must have automated verification appropriate to its risk.
+14. Prefer deterministic and reversible behavior; fail closed on ambiguous or unsafe input.
+15. New dependencies require license, origin, version/revision and purpose documentation.
+16. Large professional SDKs must remain optional/local unless a reproducible release bundle is explicitly maintained.
+17. OpenColorIO integrations must use the secured supported version range documented by the dependency audit.
 
 ## Required development loop
 
@@ -56,6 +59,9 @@ After editing:
 ## Architecture boundaries
 
 UI -> Application/Commands/Jobs -> Engine/Domain -> Infrastructure -> OS/FFmpeg/GPU/Network
+
+Interchange -> validated adapter -> Project/Timeline domain model.
+Color management -> media/format metadata -> render graph -> CPU/GPU transform -> export.
 
 Do not let widgets become service layers. Keep domain code independent from Qt UI concerns where practical.
 
