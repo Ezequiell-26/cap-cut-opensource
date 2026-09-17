@@ -28,6 +28,9 @@ add_library(ccos_core
     src/api/OpenMeteoApi.cpp
     src/api/AudioApi.cpp
     src/api/AssetsApi.cpp
+    src/api/PremiumStockApi.cpp
+    src/api/SocialMediaApi.cpp
+    src/api/AccessibilityApi.cpp
     src/core/Time.cpp
     src/core/Uuid.cpp
     src/core/CommandStack.cpp

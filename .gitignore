@@ -9,13 +9,9 @@
 *.dylib
 *.exe
 
-# CMake build directories
+# CMake build directory
 build/
 cmake-build-*/
-CMakeFiles/
-CMakeCache.txt
-Makefile
-compile_commands.json
 
 # Dependencies
 vendor/
@@ -23,24 +19,7 @@ vendor/
 # Logs
 *.log
 
-# Environment
-.env
-.env.local
-.env.*
-
-# Editor/IDE
-.vscode/
-.idea/
-*.swp
-*.swo
+# Temporary files
 *.tmp
-
-# Coverage
-coverage/
-htmlcov/
-.coverage
-
-# OS
-.DS_Store
-Thumbs.db
+*.temp
 ```
