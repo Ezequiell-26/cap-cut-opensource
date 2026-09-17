@@ -20,11 +20,14 @@ namespace {
 constexpr int kRequestTimeoutMs = 20'000;
 constexpr qint64 kMaxResponseBytes = 8 * 1024 * 1024;
 
-QNetworkRequest makeRequest(const QUrl& url) {
+QNetworkRequest makeRequest(const QUrl& url, const QString& authorizationToken = {}) {
     QNetworkRequest request(url);
     request.setHeader(QNetworkRequest::UserAgentHeader,
                       QStringLiteral("CCOS/0.7 open-media-client"));
     request.setRawHeader("Accept", "application/json");
+    if (!authorizationToken.isEmpty()) {
+        request.setRawHeader("Authorization", (QStringLiteral("Token ") + authorizationToken).toUtf8());
+    }
     return request;
 }
 
@@ -62,7 +65,7 @@ CreativeMediaApi::CreativeMediaApi(QObject* parent)
 CreativeMediaApi::~CreativeMediaApi() = default;
 
 QStringList CreativeMediaApi::supportedProviders() {
-    return {QStringLiteral("openverse"), QStringLiteral("wikimedia_commons")};
+    return {QStringLiteral("openverse"), QStringLiteral("wikimedia_commons"), QStringLiteral("freesound")};
 }
 
 QString CreativeMediaApi::kindToString(CreativeMediaKind kind) {
@@ -75,8 +78,9 @@ QString CreativeMediaApi::kindToString(CreativeMediaKind kind) {
 }
 
 void CreativeMediaApi::requestJson(const QUrl& url, const QString& provider,
-                                   std::function<void(const QJsonDocument&)> parser) {
-    auto* reply = networkManager_->get(makeRequest(url));
+                                   std::function<void(const QJsonDocument&)> parser,
+                                   const QString& authorizationToken) {
+    auto* reply = networkManager_->get(makeRequest(url, authorizationToken));
     auto* timer = new QTimer(reply);
     timer->setSingleShot(true);
     timer->start(kRequestTimeoutMs);
@@ -178,6 +182,33 @@ void CreativeMediaApi::searchWikimediaCommons(
     });
 }
 
+void CreativeMediaApi::searchFreesound(
+    const QString& query, const QString& apiToken, int page, int pageSize,
+    std::function<void(const QVector<CreativeMediaItem>&)> callback) {
+    if (apiToken.trimmed().isEmpty()) {
+        emit errorOccurred(QStringLiteral("freesound"), QStringLiteral("Freesound API token is required"));
+        return;
+    }
+
+    const int safePage = std::max(1, page);
+    const int safePageSize = std::clamp(pageSize, 1, 150);
+    QUrl url(QStringLiteral("https://freesound.org/apiv2/search/"));
+    QUrlQuery queryParameters;
+    queryParameters.addQueryItem(QStringLiteral("query"), query.trimmed());
+    queryParameters.addQueryItem(QStringLiteral("page"), QString::number(safePage));
+    queryParameters.addQueryItem(QStringLiteral("page_size"), QString::number(safePageSize));
+    queryParameters.addQueryItem(QStringLiteral("fields"),
+                                  QStringLiteral("id,name,username,license,url,previews,duration,type"));
+    queryParameters.addQueryItem(QStringLiteral("format"), QStringLiteral("json"));
+    url.setQuery(queryParameters);
+
+    requestJson(url, QStringLiteral("freesound"), [this, callback = std::move(callback)](const QJsonDocument& document) mutable {
+        const QVector<CreativeMediaItem> results = parseFreesound(document);
+        if (callback) callback(results);
+        emit resultsReady(results);
+    }, apiToken.trimmed());
+}
+
 QVector<CreativeMediaItem> CreativeMediaApi::parseOpenverse(
     const QJsonDocument& document, CreativeMediaKind kind) {
     QVector<CreativeMediaItem> results;
@@ -196,9 +227,7 @@ QVector<CreativeMediaItem> CreativeMediaApi::parseWikimedia(
     const QJsonDocument& document, CreativeMediaKind kind) {
     QVector<CreativeMediaItem> results;
     if (!document.isObject()) return results;
-    if (kind == CreativeMediaKind::Image) {
-        // The same MediaWiki imageinfo structure is used for audio/video pages.
-    }
+    Q_UNUSED(kind);
 
     const QJsonObject query = document.object().value(QStringLiteral("query")).toObject();
     const QJsonArray pages = query.value(QStringLiteral("pages")).toArray();
@@ -229,6 +258,36 @@ QVector<CreativeMediaItem> CreativeMediaApi::parseWikimedia(
             item.mimeType.startsWith(QStringLiteral("video/"))) {
             item.durationMs = static_cast<qint64>(info.value(QStringLiteral("duration")).toDouble() * 1000.0);
         }
+
+        if (item.isUsable()) results.append(item);
+    }
+    return results;
+}
+
+QVector<CreativeMediaItem> CreativeMediaApi::parseFreesound(const QJsonDocument& document) {
+    QVector<CreativeMediaItem> results;
+    if (!document.isObject()) return results;
+
+    const QJsonArray values = document.object().value(QStringLiteral("results")).toArray();
+    results.reserve(values.size());
+    for (const QJsonValue& value : values) {
+        const QJsonObject object = value.toObject();
+        CreativeMediaItem item;
+        item.provider = QStringLiteral("freesound");
+        item.id = QString::number(object.value(QStringLiteral("id")).toInteger());
+        item.title = normalizedTitle(object.value(QStringLiteral("name")).toString(), item.id);
+        item.creator = object.value(QStringLiteral("username")).toString();
+        item.license = object.value(QStringLiteral("license")).toString();
+        item.sourceUrl = object.value(QStringLiteral("url")).toString();
+        item.mimeType = object.value(QStringLiteral("type")).toString();
+        item.durationMs = static_cast<qint64>(object.value(QStringLiteral("duration")).toDouble() * 1000.0);
+
+        const QJsonObject previews = object.value(QStringLiteral("previews")).toObject();
+        item.previewUrl = previews.value(QStringLiteral("preview-hq-mp3")).toString();
+        if (item.previewUrl.isEmpty()) item.previewUrl = previews.value(QStringLiteral("preview-lq-mp3")).toString();
+        // Original downloads require a stronger OAuth permission in Freesound.
+        // The preview URL is therefore the intentionally exposed import URL here.
+        item.downloadUrl = item.previewUrl;
 
         if (item.isUsable()) results.append(item);
     }
