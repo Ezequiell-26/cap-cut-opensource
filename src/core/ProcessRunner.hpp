@@ -66,7 +66,7 @@ public:
     void cancelAll();
     [[nodiscard]] static bool validateExecutable(const QString& executable);
 
-signals:
+Q_SIGNALS:
     void processStarted(const QString& executable, const QStringList& arguments);
     void processFinished(const ProcessResult& result);
     void processError(const QString& error, const ProcessConfig& config);
