@@ -67,6 +67,10 @@ jobs:
             ! -name 'ccos-editor.html' ! -name 'ccos-editor.js' ! -name 'ccos-editor.wasm' \
             -exec cp {} web-dist/ \;
 
+          if [ -f web/vercel.json ]; then
+            cp web/vercel.json web-dist/vercel.json
+          fi
+
           cat > web-dist/.nojekyll <<'EOF'
 
 EOF
