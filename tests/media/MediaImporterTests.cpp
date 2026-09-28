@@ -29,3 +29,13 @@ TEST(MediaImporterTests, ZeroLimitFailsClosed) {
     EXPECT_TRUE(assets.empty());
     EXPECT_EQ(error, QStringLiteral("Maximum import file count must be greater than zero"));
 }
+
+
+TEST(MediaImporterTests, RejectsMissingRegularFiles) {
+    QString error;
+    const auto assets = ccos::media::MediaImporter::importFiles(
+        {QStringLiteral("/definitely/missing/ccos-media.mp4")}, 10, &error);
+
+    EXPECT_TRUE(assets.empty());
+    EXPECT_NE(error.indexOf(QStringLiteral("regular file")), -1);
+}

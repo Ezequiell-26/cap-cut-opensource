@@ -119,3 +119,16 @@ All new HTTP integrations must:
 ## Important distinction
 
 The repository's MIT dependency policy applies to software dependencies. Media returned by Openverse, Wikimedia Commons, Freesound, NASA, Internet Archive, Smithsonian, The Met, Europeana, Library of Congress or other sources remains subject to its item-level license and provider terms.
+
+
+## Location and weather enrichment
+
+### Open-Meteo Geocoding
+
+CCOS now exposes the Open-Meteo geocoding endpoint for resolving city or postal-code queries into bounded latitude/longitude results, country metadata and timezone. The request is limited to 100 results and uses the HTTPS endpoint documented by Open-Meteo.
+
+The CLI and Editor API expose this as `geocode` / `location_search`. Service usage limits and commercial-access terms should be checked against the current Open-Meteo documentation.
+
+## Unsplash integration note
+
+Unsplash Source is not used by CCOS. The adapter now retains the API-provided `links.download_location` action URL for download-like operations and continues using the direct image URLs returned under `photo.urls` for image content.

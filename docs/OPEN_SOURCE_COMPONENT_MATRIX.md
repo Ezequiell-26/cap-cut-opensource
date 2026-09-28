@@ -16,6 +16,7 @@ This matrix records the planned external building blocks for CCOS. It distinguis
 | toml++ | MIT | FetchContent | ON | Configuration |
 | EnTT | MIT | FetchContent | OFF | Data-oriented 3D/runtime structures |
 | meshoptimizer | MIT | FetchContent | OFF | Geometry optimization |
+| TinyGLTF | MIT | FetchContent | OFF | glTF/GLB 3D asset inspection/import foundation |
 | cxxopts | MIT | FetchContent | OFF | CLI tooling |
 | doctest | MIT | FetchContent | OFF | Supplementary tests |
 | pugixml | MIT | FetchContent | OFF | XML/interchange tooling |
@@ -76,6 +77,7 @@ This matrix records the planned external building blocks for CCOS. It distinguis
 | Europeana | API key | New | Preserve `rights` and source/preview URLs |
 | Library of Congress | None | New | Verify the authoritative item rights statement |
 | Open-Meteo | None | Existing | Data service, not media licensing |
+| Open-Meteo Geocoding | None | Existing | Location lookup; data/service terms apply |
 | LibreTranslate | Deployment-specific | Existing | Text service |
 
 ## Local AI
@@ -98,3 +100,5 @@ This matrix records the planned external building blocks for CCOS. It distinguis
 6. Keep API keys outside projects, logs and crash reports.
 7. Preserve creator, license, attribution and source URLs when importing external media.
 8. Every completed integration must be present on `main`; feature branches must not contain unreconciled completed work.
+
+| ImPlot | MIT | FetchContent | OFF | Technical plots, scopes and diagnostics |

@@ -30,6 +30,7 @@ CCOS source code is MIT. Dependencies remain under their own licenses. This inve
 | miniaudio | Optional audio device backend | Public Domain / MIT-0 | `CCOS_ENABLE_MINIAUDIO` |
 | ONNX Runtime | Local ML inference runtime | MIT at the repository level; execution providers may introduce additional licenses | `CCOS_ENABLE_ONNXRUNTIME` |
 | Dear ImGui | Technical/debug/content-creation UI | MIT | `CCOS_ENABLE_MIT_UI_EXTENSIONS` |
+| ImPlot | Plotting/scopes for diagnostics and tooling | MIT | `CCOS_ENABLE_MIT_UI_EXTENSIONS` |
 | ImGuizmo | Visual transform/gizmo/sequencer widgets | MIT | `CCOS_ENABLE_MIT_UI_EXTENSIONS` |
 | cpptrace | Stack traces/crash diagnostics | MIT; backend dependencies can add obligations | `CCOS_ENABLE_MIT_DIAGNOSTICS` |
 | martinus/unordered_dense | High-performance hash containers | MIT | `CCOS_ENABLE_MIT_STORAGE` |
@@ -86,3 +87,5 @@ The current extension CMake modules fetch only lightweight optional components a
 6. Do not claim an imported asset is MIT merely because its discovery API is free or open source.
 7. For optional professional integrations, require a local audited installation and a minimum supported security version before release.
 8. Run a release-time license scan against the final dependency graph.
+
+| TinyGLTF | glTF/GLB parsing and serialization | MIT | `CCOS_ENABLE_MIT_MEDIA_3D` |

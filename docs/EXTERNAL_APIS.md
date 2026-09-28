@@ -21,9 +21,9 @@ CCOS integrates with multiple free and open-source APIs to provide enhanced func
 ## Translation APIs
 
 ### LibreTranslate
-- **Endpoint**: `https://libretranslate.com` (or self-hosted)
-- **License**: AGPL (self-hostable)
-- **Features**: Free machine translation, supports 30+ languages
+- **Endpoint**: deployment-specific (public or self-hosted)
+- **Features**: Machine translation for subtitles and text overlays
+- **Authentication/limits**: depend on the selected instance
 - **API Key**: Not required for public instance, rate limited
 - **Usage**: Translate subtitles and text overlays automatically
 
@@ -40,9 +40,10 @@ CCOS integrates with multiple free and open-source APIs to provide enhanced func
 ## Weather Data
 
 ### Open-Meteo
-- **Endpoint**: `https://open-meteo.com/`
-- **License**: Free for non-commercial use
-- **Features**: Current weather, forecasts, historical data
+- **Forecast endpoint**: `https://api.open-meteo.com/v1/forecast`
+- **Geocoding endpoint**: `https://geocoding-api.open-meteo.com/v1/search`
+- **Features**: Current weather, forecasts and location search
+- **Usage**: Check current service/commercial terms before production redistribution or high-volume automation
 - **API Key**: Not required
 - **Usage**: Add weather overlays and location-based effects
 
@@ -134,3 +135,8 @@ qDebug() << "Condition:" << weather.condition;
 - No user data is stored on CCOS servers
 - Consider using self-hosted instances for sensitive projects
 - API keys are stored locally in Qt settings
+
+
+## Unsplash compatibility note
+
+Unsplash Source has been sunset and is intentionally not referenced by CCOS. The application uses the official Unsplash API and should preserve the direct URLs returned by the API; download-like actions should use the API's documented `links.download_location` flow.

@@ -18,3 +18,9 @@ TEST(TimeTests, AdditionWorksAcrossDenominators) {
     EXPECT_EQ(result.numerator(), 5);
     EXPECT_EQ(result.denominator(), 6);
 }
+
+
+TEST(TimeTests, RejectsOutOfRangeSecondConversion) {
+    const auto result = ccos::core::Time::fromSeconds(1.0e20);
+    EXPECT_EQ(result, ccos::core::Time{});
+}
