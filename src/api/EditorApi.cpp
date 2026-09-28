@@ -46,6 +46,7 @@ QJsonObject editResult(const ccos::timeline::Track& track, int clipIndex) {
 
 QJsonObject EditorApi::inspect(const ccos::project::Project& project) {
     QJsonObject out;
+    out.insert(QStringLiteral("ok"), true);
     out.insert(QStringLiteral("name"), project.name());
     out.insert(QStringLiteral("assetCount"), static_cast<int>(project.assets().size()));
     out.insert(QStringLiteral("textLayerCount"), static_cast<int>(project.textLayers().size()));
