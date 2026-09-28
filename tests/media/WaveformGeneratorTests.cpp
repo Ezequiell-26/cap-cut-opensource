@@ -65,7 +65,8 @@ TEST(WaveformGeneratorTests, CachePathChangesWithSourceFingerprint) {
     const QString first = ccos::media::WaveformGenerator::waveformPath(cache, asset);
 
     ASSERT_TRUE(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
-    ASSERT_EQ(file.write(QByteArrayLiteral("a-longer-audio-fixture")), 21);
+    const QByteArray longerFixture = QByteArrayLiteral("a-longer-audio-fixture");
+    ASSERT_EQ(file.write(longerFixture), longerFixture.size());
     file.close();
 
     const QString second = ccos::media::WaveformGenerator::waveformPath(cache, asset);
