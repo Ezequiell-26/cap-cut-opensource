@@ -153,8 +153,11 @@ public:
     /**
      * @brief Serializa un proyecto a JSON
      */
-    static std::string serialize(const std::string& projectData, 
-                                 const SerializeOptions& options = SerializeOptions());
+    static std::string serialize(const std::string& projectData,
+                                 const SerializeOptions& options);
+    static std::string serialize(const std::string& projectData) {
+        return serialize(projectData, SerializeOptions{});
+    }
     
     /**
      * @brief Deserializa JSON a proyecto
@@ -164,9 +167,13 @@ public:
     /**
      * @brief Guarda un proyecto en disco con validación
      */
-    static bool saveToFile(const std::string& filePath, 
+    static bool saveToFile(const std::string& filePath,
                           const std::string& projectData,
-                          const SerializeOptions& options = SerializeOptions());
+                          const SerializeOptions& options);
+    static bool saveToFile(const std::string& filePath,
+                           const std::string& projectData) {
+        return saveToFile(filePath, projectData, SerializeOptions{});
+    }
     
     /**
      * @brief Carga un proyecto desde disco con migración automática

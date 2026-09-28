@@ -11,6 +11,8 @@
 #include <QFile>
 #include <QProcess>
 #include <QStandardPaths>
+#include <QDir>
+#include <QTimer>
 
 namespace ccos::ai {
 

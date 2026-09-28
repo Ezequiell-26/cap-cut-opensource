@@ -1,6 +1,7 @@
 #include "media/MediaProbe.hpp"
 #include "core/ProcessRunner.hpp"
 
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 

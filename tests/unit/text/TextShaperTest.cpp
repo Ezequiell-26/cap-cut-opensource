@@ -10,7 +10,7 @@ TEST(TextShaperTest, EmptyInputReturnsEmptyRun) {
 TEST(TextShaperTest, ShapesUnicodeTextWithoutLosingInputOrder) {
     const auto run = ccos::text::TextShaper::shape(QString::fromUtf8("Café 世界"));
     ASSERT_FALSE(run.isEmpty());
-    EXPECT_EQ(run.size(), 8);
+    EXPECT_EQ(run.size(), 7);
 }
 
 TEST(TextShaperTest, RTLRequestReturnsValidRun) {

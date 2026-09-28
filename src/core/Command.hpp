@@ -10,6 +10,8 @@
 
 namespace ccos::core {
 
+class CommandStack;
+
 enum class CommandRiskLevel {
     Low,
     Medium,
@@ -100,6 +102,8 @@ protected:
     void markUndone() noexcept { m_executed = false; }
 
 private:
+    friend class CommandStack;
+
     QString m_id;
     qint64 m_timestamp = 0;
     bool m_executed = false;

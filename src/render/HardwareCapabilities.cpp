@@ -46,7 +46,8 @@ HardwareCapabilities HardwareCapabilitiesProbe::detect(const QString& executable
     for (const QString& line : text.split('\n', Qt::SkipEmptyParts)) {
         const QString trimmed = line.trimmed();
         const auto parts = trimmed.split(QRegularExpression(QStringLiteral("\\s+")), Qt::SkipEmptyParts);
-        if (parts.size() >= 2 && !parts.at(0).startsWith(QLatin1Char('['))) {
+        if (parts.size() >= 2 && parts.at(0).size() == 6 &&
+            !parts.at(0).startsWith(QLatin1Char('[')) && parts.at(1) != QStringLiteral("=")) {
             result.encoders.append(parts.at(1));
         }
     }

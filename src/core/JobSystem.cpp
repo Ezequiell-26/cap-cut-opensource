@@ -2,6 +2,7 @@
 
 #include <QLoggingCategory>
 #include <QMetaObject>
+#include <QThread>
 #include <QUuid>
 #include <QtConcurrent>
 
@@ -325,6 +326,10 @@ void JobSystem::handleJobFailure(const JobPtr& job, const JobError& error) {
 }
 
 void JobSystem::scheduleExecution() {
+    if (QThread::currentThread() == thread()) {
+        processNextJobs();
+        return;
+    }
     QMetaObject::invokeMethod(this, &JobSystem::processNextJobs, Qt::QueuedConnection);
 }
 

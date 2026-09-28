@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include <QTemporaryDir>
 #include "project/ProjectSchema.hpp"
 
 using namespace ccos;
@@ -179,7 +180,9 @@ TEST(ProjectSerializerTest, SerializeDeserialize) {
 }
 
 TEST(ProjectSerializerTest, SaveAndLoadFile) {
-    std::string testPath = "/tmp/test_project.ccos";
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const std::string testPath = (dir.path() + QStringLiteral("/test_project.ccos")).toStdString();
     std::string project = ProjectFixtures::createMinimalValidProject();
     
     // Guardar
@@ -193,7 +196,9 @@ TEST(ProjectSerializerTest, SaveAndLoadFile) {
 }
 
 TEST(ProjectSerializerTest, CreateBackup) {
-    std::string testPath = "/tmp/test_project_backup.ccos";
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const std::string testPath = (dir.path() + QStringLiteral("/test_project_backup.ccos")).toStdString();
     std::string project = ProjectFixtures::createMinimalValidProject();
     
     // Primero guardar el archivo original
@@ -294,7 +299,9 @@ TEST(ProjectFixturesTest, CreateEmptyProject) {
 
 TEST(ProjectSchemaRoundtripTest, SaveLoadRoundtrip) {
     std::string original = ProjectFixtures::createFullValidProject();
-    std::string testPath = "/tmp/test_roundtrip.ccos";
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const std::string testPath = (dir.path() + QStringLiteral("/test_roundtrip.ccos")).toStdString();
     
     // Guardar
     EXPECT_TRUE(ProjectSerializer::saveToFile(testPath, original));

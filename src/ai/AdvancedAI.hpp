@@ -1,5 +1,8 @@
 #pragma once
+#include <QJsonDocument>
+#include <QRectF>
 #include <QString>
+#include <QStringList>
 #include <QVariantMap>
 #include <QVector>
 
@@ -26,6 +29,7 @@ struct TranscriptionResult {
 
 struct ImageAnalysisResult {
     QString description;
+    double confidence = 0.0;
     QStringList tags;
     QString dominantColor;
     struct Object {

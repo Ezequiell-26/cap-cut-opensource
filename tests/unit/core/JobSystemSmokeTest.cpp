@@ -2,6 +2,8 @@
 
 #include "core/JobSystem.hpp"
 
+#include <QCoreApplication>
+
 #include <QTest>
 #include <atomic>
 #include <chrono>
@@ -9,7 +11,19 @@
 
 using namespace ccos::core;
 
+namespace {
+void ensureQtApplication() {
+    if (QCoreApplication::instance()) return;
+    static int argc = 1;
+    static char applicationName[] = "ccos-job-system-tests";
+    static char* argv[] = {applicationName, nullptr};
+    static QCoreApplication app(argc, argv);
+    Q_UNUSED(app);
+}
+} // namespace
+
 TEST(JobSystemSmokeTest, ExecutesAndReportsCompletion) {
+    ensureQtApplication();
     JobSystem jobs(2);
     JobConfig config;
     config.name = QStringLiteral("smoke");
@@ -26,6 +40,7 @@ TEST(JobSystemSmokeTest, ExecutesAndReportsCompletion) {
 }
 
 TEST(JobSystemSmokeTest, CancellationIsObservable) {
+    ensureQtApplication();
     JobSystem jobs(1);
     JobConfig config;
     config.cooperativeExecuteFn = [](const JobControlPtr& control) {
@@ -47,6 +62,7 @@ TEST(JobSystemSmokeTest, CancellationIsObservable) {
 }
 
 TEST(JobSystemSmokeTest, ExplicitRetryPolicyWorks) {
+    ensureQtApplication();
     JobSystem jobs(1);
     std::atomic<int> attempts{0};
 
@@ -71,6 +87,7 @@ TEST(JobSystemSmokeTest, ExplicitRetryPolicyWorks) {
 }
 
 TEST(JobSystemSmokeTest, ConcurrencyLimitIsRespected) {
+    ensureQtApplication();
     JobSystem jobs(2);
     std::atomic<int> current{0};
     std::atomic<int> maximum{0};

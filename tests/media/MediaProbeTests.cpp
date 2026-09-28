@@ -3,7 +3,7 @@
 #include <gtest/gtest.h>
 
 TEST(MediaProbeTests, EmptyMediaPathFailsBeforeLaunchingProcess) {
-    ccos::media::MediaAsset asset(QString());
+    ccos::media::MediaAsset asset{};
     QString error;
 
     EXPECT_FALSE(ccos::media::MediaProbe::probe(asset, QStringLiteral("ffprobe"), &error));

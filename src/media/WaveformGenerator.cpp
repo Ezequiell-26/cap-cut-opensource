@@ -116,7 +116,7 @@ bool WaveformGenerator::generate(const MediaAsset& asset,
     config.startupTimeout = std::chrono::seconds(5);
     config.timeout = std::chrono::seconds(45);
     config.maxOutputSize = 2 * 1024 * 1024;
-    config.riskLevel = ccos::core::ProcessRunner::RiskLevel::High;
+    config.riskLevel = ccos::core::ProcessConfig::RiskLevel::High;
     config.sanitizeEnvironment = true;
 
     const auto result = runner.executeSync(config);

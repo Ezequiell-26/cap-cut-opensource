@@ -98,7 +98,10 @@ void AccessibilityApi::listAvailableVoices(const QString& languageCode,
                 QJsonObject item = val.toObject();
                 
                 VoiceProfile voice;
-                QStringList languageCodes = item["languageCodes"].toArray().toVariantList().toStringList();
+                QStringList languageCodes;
+                for (const QJsonValue& code : item["languageCodes"].toArray()) {
+                    languageCodes.append(code.toString());
+                }
                 voice.id = item["name"].toString();
                 voice.name = item["name"].toString();
                 voice.language = languageCodes.isEmpty() ? "" : languageCodes.first();
@@ -212,7 +215,7 @@ void AccessibilityApi::speechToText(const QByteArray& audioData, const QString& 
     requestBody["config"] = config;
     
     QJsonObject audio;
-    audio["content"] = audioData.toBase64();
+    audio["content"] = QString::fromLatin1(audioData.toBase64());
     requestBody["audio"] = audio;
     
     QNetworkRequest request(url);
@@ -221,7 +224,7 @@ void AccessibilityApi::speechToText(const QByteArray& audioData, const QString& 
     
     auto* reply = m_networkManager->post(request, QJsonDocument(requestBody).toJson());
     
-    connect(reply, &QNetworkReply::finished, this, [reply, callback, this]() {
+    connect(reply, &QNetworkReply::finished, this, [reply, callback, this, languageCode, enableProfanityFilter]() {
         if (reply->error() != QNetworkReply::NoError) {
             emit errorOccurred(reply->errorString());
             reply->deleteLater();
@@ -256,8 +259,10 @@ void AccessibilityApi::speechToText(const QByteArray& audioData, const QString& 
                     QJsonArray words = alt["words"].toArray();
                     for (const QJsonValue& w : words) {
                         QJsonObject wordObj = w.toObject();
-                        int startTime = wordObj["startTime"].toString().replace("s", "").toFloat() * 1000;
-                        int endTime = wordObj["endTime"].toString().replace("s", "").toFloat() * 1000;
+                        const double startSeconds = wordObj["startTime"].toString().remove(QLatin1Char('s')).toDouble();
+                        const double endSeconds = wordObj["endTime"].toString().remove(QLatin1Char('s')).toDouble();
+                        const int startTime = qRound(startSeconds * 1000.0);
+                        const int endTime = qRound(endSeconds * 1000.0);
                         result.timestamps.append(qMakePair(startTime, endTime));
                     }
                 }
@@ -482,7 +487,8 @@ QString AccessibilityApi::convertSrtToWebVtt(const QString& srtContent)
     for (const QString& line : lines) {
         // Convertir formato de tiempo SRT (,) a WebVTT (.)
         if (line.contains("-->")) {
-            webvtt += line.replace(",", ".") + "\n";
+            QString normalizedLine = line;
+            webvtt += normalizedLine.replace(",", ".") + "\n";
         } else {
             webvtt += line + "\n";
         }
@@ -508,7 +514,8 @@ QString AccessibilityApi::convertWebVttToSrt(const QString& webvttContent)
         
         if (line.contains("-->")) {
             srt += QString::number(index++) + "\n";
-            srt += line.replace(".", ",") + "\n";
+            QString normalizedLine = line;
+            srt += normalizedLine.replace(".", ",") + "\n";
         } else if (!line.trimmed().isEmpty()) {
             srt += line + "\n";
         }

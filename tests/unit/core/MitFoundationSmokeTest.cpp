@@ -25,13 +25,13 @@ TEST(MitFoundationSmokeTest, JsonFormattingAndTomlWork) {
 }
 
 TEST(MitFoundationSmokeTest, TaskflowAndGlmWork) {
-    taskflow::Taskflow taskflow;
+    tf::Taskflow taskflow;
     int value = 0;
-    const auto first = taskflow.emplace([&] { value = 21; });
-    const auto second = taskflow.emplace([&] { value *= 2; });
+    auto first = taskflow.emplace([&] { value = 21; });
+    auto second = taskflow.emplace([&] { value *= 2; });
     first.precede(second);
 
-    taskflow::Executor executor(1);
+    tf::Executor executor(1);
     executor.run(taskflow).wait();
     EXPECT_EQ(value, 42);
 

@@ -1,5 +1,6 @@
 #include "ai/AICommandPlan.hpp"
 
+#include <QJsonArray>
 #include <gtest/gtest.h>
 
 TEST(AICommandPlanTest, RejectsUnknownOperation) {

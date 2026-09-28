@@ -20,8 +20,10 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QLocale>
 #include <QMenu>
 #include <QMediaPlayer>
+#include <QMenuBar>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QSlider>
@@ -29,6 +31,7 @@
 #include <QStandardPaths>
 #include <QStatusBar>
 #include <QTimer>
+#include <QToolBar>
 #include <QTreeWidget>
 #include <QUrl>
 #include <QVBoxLayout>
@@ -81,7 +84,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
                 this,
                 QStringLiteral("Recover Project"),
                 QStringLiteral("A recoverable project snapshot was found from %1. Recover it?")
-                    .arg(candidates.first().lastModified().toLocalTime().toString(Qt::DefaultLocaleShortDate)));
+                    .arg(QLocale().toString(candidates.first().lastModified().toLocalTime(), QLocale::ShortFormat)));
             if (answer == QMessageBox::Yes) {
                 QString error;
                 ccos::project::Project recovered;
@@ -187,7 +190,7 @@ void MainWindow::buildUi() {
     auto* videoWidget = new QVideoWidget(center);
     videoWidget->setMinimumSize(640, 360);
     videoWidget->setStyleSheet(QStringLiteral("background:#111; border:1px solid #2a2a2a;"));
-    player_->setVideoOutput(videoWidget->videoSink());
+    player_->setVideoOutput(videoWidget);
     previewLabel_ = new QLabel(QStringLiteral("Import a media file to begin"), videoWidget);
     previewLabel_->setAlignment(Qt::AlignCenter);
     previewLabel_->setAttribute(Qt::WA_TransparentForMouseEvents);

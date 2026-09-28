@@ -128,7 +128,8 @@ QVector<FontInfo> GoogleFontsApi::parseFontsResponse(const QJsonDocument& doc) {
         const QJsonObject object = value.toObject();
         FontInfo result;
         result.family = object.value(QStringLiteral("family")).toString();
-        result.variant = object.value(QStringLiteral("variants")).toArray().value(0).toString();
+        const QJsonArray variants = object.value(QStringLiteral("variants")).toArray();
+        result.variant = variants.isEmpty() ? QString() : variants.at(0).toString();
         result.category = object.value(QStringLiteral("category")).toString();
         result.license = object.value(QStringLiteral("license")).toString();
         result.downloadUrl = getFontDownloadUrl(result.family, result.variant.isEmpty() ? QStringLiteral("regular") : result.variant);
@@ -237,7 +238,8 @@ QVector<IconData> IconFinderApi::parseIconFinderResponse(const QJsonDocument& do
 QVector<IconData> IconFinderApi::parsePhosphorIcons(const QJsonDocument& doc) {
     QVector<IconData> results;
     if (!doc.isObject()) return results;
-    for (auto it = doc.object().cbegin(); it != doc.object().cend(); ++it) {
+    const QJsonObject object = doc.object();
+    for (auto it = object.constBegin(); it != object.constEnd(); ++it) {
         IconData icon;
         icon.name = it.key();
         icon.id = QStringLiteral("phosphor-") + it.key();

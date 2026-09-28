@@ -99,8 +99,8 @@ bool runSnapshot(std::vector<TaskDefinition> definitions,
         prerequisites.at(indexes.at(to)).push_back(indexes.at(from));
     }
 
-    taskflow::Taskflow flow;
-    std::vector<taskflow::Task> handles;
+    tf::Taskflow flow;
+    std::vector<tf::Task> handles;
     std::vector<unsigned char> results(definitions.size(), 0U);
     handles.reserve(definitions.size());
 
@@ -120,7 +120,7 @@ bool runSnapshot(std::vector<TaskDefinition> definitions,
         handles.at(indexes.at(from)).precede(handles.at(indexes.at(to)));
     }
 
-    taskflow::Executor executor;
+    tf::Executor executor;
     executor.run(flow).wait();
 
     for (std::size_t i = 0; i < results.size(); ++i) {

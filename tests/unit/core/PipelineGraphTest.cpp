@@ -20,12 +20,12 @@ TEST(PipelineGraphTest, ExecutesDependenciesInOrder) {
         return true;
     }));
     ASSERT_TRUE(graph.addTask(QStringLiteral("proxy"), [&] {
-        EXPECT_EQ(order, QStringList{QStringLiteral("decode")});
+        EXPECT_EQ(order, (QStringList{QStringLiteral("decode")}));
         order.append(QStringLiteral("proxy"));
         return true;
     }));
     ASSERT_TRUE(graph.addTask(QStringLiteral("render"), [&] {
-        EXPECT_EQ(order, QStringList{QStringLiteral("decode"), QStringLiteral("proxy")});
+        EXPECT_EQ(order, (QStringList{QStringLiteral("decode"), QStringLiteral("proxy")}));
         order.append(QStringLiteral("render"));
         return true;
     }));
@@ -70,7 +70,8 @@ TEST(PipelineGraphTest, AsyncExecutionUsesSnapshot) {
 
     auto future = graph.runAsync();
     graph.clear();
-    ASSERT_TRUE(future.waitForFinished());
+    future.waitForFinished();
+    ASSERT_FALSE(future.isCanceled());
     EXPECT_TRUE(future.result());
 }
 
