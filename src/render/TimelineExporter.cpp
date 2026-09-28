@@ -3,8 +3,10 @@
 #include "render/HardwareCapabilities.hpp"
 #include "core/ProcessRunner.hpp"
 
-#include <QFileInfo>
 #include <QDir>
+#include <QFile>
+#include <QFileInfo>
+#include <QUuid>
 
 namespace ccos::render {
 namespace {
@@ -23,6 +25,22 @@ bool samePath(const QString& left, const QString& right) {
 #else
     return a == b;
 #endif
+}
+
+QString uniqueSiblingPath(const QString& outputPath, const QString& marker) {
+    const QFileInfo info(outputPath);
+    const QString baseName = info.completeBaseName().isEmpty()
+        ? QStringLiteral("output")
+        : info.completeBaseName();
+    const QString suffix = info.suffix();
+    QString path;
+    do {
+        path = QDir(info.absolutePath()).filePath(
+            QStringLiteral(".%1.ccos-%2%3")
+                .arg(baseName, marker, QUuid::createUuid().toString(QUuid::WithoutBraces)));
+        if (!suffix.isEmpty()) path += QStringLiteral(".") + suffix;
+    } while (QFileInfo::exists(path));
+    return path;
 }
 
 } // namespace
@@ -70,6 +88,8 @@ bool TimelineExporter::exportContiguousVideo(const ccos::project::Project& proje
         return false;
     }
 
+    const QString temporaryOutputPath = uniqueSiblingPath(outputPath, QStringLiteral("tmp"));
+
     QStringList args{QStringLiteral("-hide_banner"), QStringLiteral("-y")};
     for (const auto& input : inputs) args << QStringLiteral("-i") << input;
     args << QStringLiteral("-filter_complex") << filter
@@ -83,7 +103,7 @@ bool TimelineExporter::exportContiguousVideo(const ccos::project::Project& proje
          << QStringLiteral("-b:a") << QStringLiteral("%1k").arg(settings.audioBitrateKbps)
          << QStringLiteral("-shortest");
     if (settings.container == QStringLiteral("mp4")) args << QStringLiteral("-movflags") << QStringLiteral("+faststart");
-    args << outputPath;
+    args << temporaryOutputPath;
 
     ccos::core::ProcessRunner runner;
     ccos::core::ProcessConfig config;
@@ -97,15 +117,35 @@ bool TimelineExporter::exportContiguousVideo(const ccos::project::Project& proje
 
     const auto result = runner.executeSync(config);
     if (!result.isSuccess()) {
+        QFile::remove(temporaryOutputPath);
         if (error) *error = result.errorMessage();
         return false;
     }
 
-    if (!QFileInfo::exists(outputPath) || QFileInfo(outputPath).size() <= 0) {
+    if (!QFileInfo::exists(temporaryOutputPath) || QFileInfo(temporaryOutputPath).size() <= 0) {
+        QFile::remove(temporaryOutputPath);
         if (error) *error = QStringLiteral("FFmpeg completed without producing the timeline output");
         return false;
     }
 
+    QString backupPath;
+    if (QFileInfo::exists(outputPath)) {
+        backupPath = uniqueSiblingPath(outputPath, QStringLiteral("backup"));
+        if (!QFile::rename(outputPath, backupPath)) {
+            QFile::remove(temporaryOutputPath);
+            if (error) *error = QStringLiteral("Unable to protect existing output before export: %1").arg(outputPath);
+            return false;
+        }
+    }
+
+    if (!QFile::rename(temporaryOutputPath, outputPath)) {
+        if (!backupPath.isEmpty()) QFile::rename(backupPath, outputPath);
+        QFile::remove(temporaryOutputPath);
+        if (error) *error = QStringLiteral("Unable to finalize exported timeline: %1").arg(outputPath);
+        return false;
+    }
+
+    if (!backupPath.isEmpty()) QFile::remove(backupPath);
     return true;
 }
 }
