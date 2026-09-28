@@ -87,9 +87,14 @@ QJsonObject EditorApi::validate(const ccos::project::Project& project) {
             const auto& clip = track.clips()[clipIndex];
             const QString prefix = QStringLiteral("Track %1 clip %2").arg(static_cast<qulonglong>(trackIndex))
                                                                   .arg(static_cast<qulonglong>(clipIndex));
-            const bool assetKnown = std::any_of(project.assets().begin(), project.assets().end(),
-                                                [&clip](const auto& asset) { return asset.id() == clip.assetId(); });
-            if (!assetKnown) {
+            const ccos::media::MediaAsset* referencedAsset = nullptr;
+            for (const auto& asset : project.assets()) {
+                if (asset.id() == clip.assetId()) {
+                    referencedAsset = &asset;
+                    break;
+                }
+            }
+            if (!referencedAsset) {
                 errors.append(prefix + QStringLiteral(" references an unknown asset"));
             }
             if (clip.start() < ccos::core::Time{}) {
@@ -100,6 +105,12 @@ QJsonObject EditorApi::validate(const ccos::project::Project& project) {
             }
             if (clip.sourceIn() < ccos::core::Time{} || clip.sourceOut() <= clip.sourceIn()) {
                 errors.append(prefix + QStringLiteral(" has an invalid source range"));
+            } else if (referencedAsset && referencedAsset->metadata().durationMs > 0) {
+                const double mediaDurationSeconds =
+                    static_cast<double>(referencedAsset->metadata().durationMs) / 1000.0;
+                if (clip.sourceOut().seconds() > mediaDurationSeconds + 0.000001) {
+                    errors.append(prefix + QStringLiteral(" source range exceeds known asset duration"));
+                }
             }
             const double speed = clip.speed();
             if (!std::isfinite(speed) || speed <= 0.0) {

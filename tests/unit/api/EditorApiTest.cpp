@@ -162,6 +162,33 @@ TEST(EditorApiTest, ValidationRejectsInvalidClipTransform) {
 }
 
 
+TEST(EditorApiTest, ValidationRejectsClipSourceBeyondKnownAssetDuration) {
+    auto project = makeProject();
+    ccos::media::MediaAsset asset(QStringLiteral("short.mp4"));
+    asset.metadata().durationMs = 10000;
+    project.addAsset(asset);
+
+    auto& track = project.timeline().ensureVideoTrack();
+    auto clip = ccos::timeline::Clip(project.assets().front());
+    clip.setSourceRange(ccos::core::Time::fromSeconds(0.0),
+                        ccos::core::Time::fromSeconds(12.0));
+    track.addClip(clip);
+
+    const QJsonObject result = ccos::api::EditorApi::validate(project);
+    EXPECT_FALSE(result.value(QStringLiteral("ok")).toBool());
+
+    const auto errors = result.value(QStringLiteral("errors")).toArray();
+    bool foundDurationError = false;
+    for (const auto& error : errors) {
+        if (error.toString().contains(QStringLiteral("source range exceeds known asset duration"))) {
+            foundDurationError = true;
+            break;
+        }
+    }
+    EXPECT_TRUE(foundDurationError);
+}
+
+
 TEST(EditorApiTest, AudioMixCommandRejectsUnsafeGain) {
     auto project = makeProject();
     auto& track = project.timeline().ensureVideoTrack();
