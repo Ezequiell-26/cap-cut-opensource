@@ -45,7 +45,10 @@ AIResponse OpenAICompatibleProvider::execute(const AIRequest& request) {
     QEventLoop loop;
     QTimer timeout;
     timeout.setSingleShot(true);
-    timeout.start(request.options.value(QStringLiteral("timeoutMs")).toInt(120000));
+    const int timeoutMs = request.options.contains(QStringLiteral("timeoutMs"))
+        ? request.options.value(QStringLiteral("timeoutMs")).toInt()
+        : 120000;
+    timeout.start(qBound(1000, timeoutMs, 10 * 60 * 1000));
     QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
     QObject::connect(&timeout, &QTimer::timeout, &loop, [&loop, reply] { reply->abort(); loop.quit(); });
     loop.exec();

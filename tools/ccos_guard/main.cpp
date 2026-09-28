@@ -97,10 +97,18 @@ struct Guard {
             std::size_t best = std::string::npos;
             std::string matchedPrefix;
             for (const auto& prefix : prefixes) {
-                const std::size_t position = content.find(prefix, cursor);
-                if (position != std::string::npos && (best == std::string::npos || position < best)) {
-                    best = position;
-                    matchedPrefix = prefix;
+                std::size_t position = content.find(prefix, cursor);
+                while (position != std::string::npos) {
+                    const bool atTokenBoundary = position == 0 || content[position - 1] == ' ' ||
+                                                 content[position - 1] == '\n' || content[position - 1] == '\r' ||
+                                                 content[position - 1] == '\t' || content[position - 1] == '(' ||
+                                                 content[position - 1] == '"';
+                    if (atTokenBoundary && (best == std::string::npos || position < best)) {
+                        best = position;
+                        matchedPrefix = prefix;
+                        break;
+                    }
+                    position = content.find(prefix, position + 1);
                 }
             }
             if (best == std::string::npos) break;
